@@ -8,16 +8,17 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class MainViewModel : ViewModel() {
-    // 1. UI State: Track active tab and selected year
+    // 1. UI State: Track active tab, selected year, and data lists
     val isDriversTab = mutableStateOf(true)
-    val selectedYear = mutableStateOf("2025") // Default season
+    val selectedYear = mutableStateOf("2025")
 
-    // Data lists for the UI to observe
     val drivers = mutableStateOf<List<DriverStanding>>(emptyList())
-    // CHANGED: Now storing ConstructorStanding to keep points and rank data
     val constructors = mutableStateOf<List<ConstructorStanding>>(emptyList())
 
-    // 2. Setup Retrofit with a Mirror URL and User-Agent
+    // NEW: Real-time Schedule state
+    val schedule = mutableStateOf<List<APIRace>>(emptyList())
+
+    // 2. Setup Retrofit with Mirror URL and User-Agent
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://api.jolpi.ca/ergast/f1/")
         .client(
@@ -36,6 +37,7 @@ class MainViewModel : ViewModel() {
     private val apiService = retrofit.create(F1ApiService::class.java)
 
     init {
+        // Load initial data for the default year (2025)
         fetchData()
     }
 
@@ -48,37 +50,50 @@ class MainViewModel : ViewModel() {
     // 4. Helper function to filter drivers by team ID
     fun getDriversForTeam(constructorId: String): List<DriverStanding> {
         return drivers.value.filter { standing ->
-            // Uses lastOrNull to handle mid-season team swaps
             standing.Constructors.lastOrNull()?.constructorId == constructorId
         }
     }
 
-    private fun fetchData() {
+    // NEW: Fetch Schedule for the current selected year
+    private fun fetchSchedule(year: String) {
         viewModelScope.launch {
             try {
-                val year = selectedYear.value // Get current selected year
+                val response = apiService.getSeasonSchedule(year)
+                schedule.value = response.MRData.RaceTable.Races
+                println("F1DEBUG: Found ${schedule.value.size} races for $year!")
+            } catch (e: Exception) {
+                println("F1DEBUG SCHEDULE ERROR: ${e.message}")
+                schedule.value = emptyList()
+            }
+        }
+    }
 
-                // Fetch Driver Standings for the selected year
+    private fun fetchData() {
+        val year = selectedYear.value
+
+        // Always fetch schedule along with standings
+        fetchSchedule(year)
+
+        viewModelScope.launch {
+            try {
+                // Fetch Driver Standings
                 val driverResponse = apiService.getDriverStandings(year)
                 val dLists = driverResponse.MRData.StandingsTable.StandingsLists
 
                 if (dLists.isNotEmpty()) {
                     drivers.value = dLists[0].DriverStandings
-                    println("F1DEBUG: Found ${drivers.value.size} drivers for $year!")
                 } else {
-                    drivers.value = emptyList() // Clear list if no data
+                    drivers.value = emptyList()
                 }
 
-                // Fetch Constructor Standings for the selected year
+                // Fetch Constructor Standings
                 val constructorResponse = apiService.getConstructorStandings(year)
                 val cLists = constructorResponse.MRData.StandingsTable.StandingsLists
 
                 if (cLists.isNotEmpty()) {
-                    // CHANGED: We now save the full standings list instead of mapping to .Constructor
                     constructors.value = cLists[0].ConstructorStandings
-                    println("F1DEBUG: Found ${constructors.value.size} team standings for $year!")
                 } else {
-                    constructors.value = emptyList() // Clear list if no data
+                    constructors.value = emptyList()
                 }
 
             } catch (e: Exception) {

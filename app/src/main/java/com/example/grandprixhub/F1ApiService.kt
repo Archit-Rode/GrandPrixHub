@@ -4,24 +4,44 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 
 interface F1ApiService {
-    // UPDATED: Now uses {year} as a dynamic path parameter
+    // EXISTING: Standings
     @GET("{year}/driverStandings.json")
-    suspend fun getDriverStandings(
-        @Path("year") year: String
-    ): StandingsResponse
+    suspend fun getDriverStandings(@Path("year") year: String): StandingsResponse
 
-    // UPDATED: Now uses {year} as a dynamic path parameter
     @GET("{year}/constructorStandings.json")
-    suspend fun getConstructorStandings(
-        @Path("year") year: String
-    ): StandingsResponse
+    suspend fun getConstructorStandings(@Path("year") year: String): StandingsResponse
+
+    // NEW: Real-time Schedule
+    @GET("{year}.json")
+    suspend fun getSeasonSchedule(@Path("year") year: String): ScheduleResponse
 }
 
-// --- Data Structures (Unchanged) ---
+// --- Schedule Data Classes ---
+data class ScheduleResponse(val MRData: MRDataSchedule)
+data class MRDataSchedule(val RaceTable: RaceTable)
+data class RaceTable(val Races: List<APIRace>)
+
+data class APIRace(
+    val round: String,
+    val raceName: String,
+    val Circuit: Circuit,
+    val date: String,
+    val time: String? = null // Optional time field
+)
+
+data class Circuit(
+    val circuitName: String,
+    val Location: Location
+)
+
+data class Location(
+    val locality: String,
+    val country: String
+)
+
+// --- Standings Data Classes (Unchanged) ---
 data class StandingsResponse(val MRData: MRData)
-
 data class MRData(val StandingsTable: StandingsTable)
-
 data class StandingsTable(val StandingsLists: List<StandingsList>)
 
 data class StandingsList(
@@ -39,7 +59,8 @@ data class DriverStanding(
 data class ConstructorStanding(
     val position: String,
     val points: String,
-    val Constructor: Constructor)
+    val Constructor: Constructor
+)
 
 data class Driver(
     val driverId: String,

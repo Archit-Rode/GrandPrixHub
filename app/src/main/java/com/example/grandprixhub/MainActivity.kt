@@ -84,10 +84,28 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+                    } else if (currentBottomTab == "Schedule") {
+                        // Top bar for Schedule tab showing current year
+                        CenterAlignedTopAppBar(
+                            title = {
+                                Text(
+                                    "${viewModel.selectedYear.value} CALENDAR",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontStyle = FontStyle.Italic
+                                    )
+                                )
+                            },
+                            actions = { SeasonDropdown(viewModel) },
+                            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                containerColor = Color(0xFF15151E),
+                                titleContentColor = Color.White
+                            )
+                        )
                     }
                 },
-                // Bottom Navigation Implementation
                 bottomBar = {
+                    // NavigationBar for Schedule and Results
                     NavigationBar(
                         containerColor = Color(0xFF1F1F27),
                         contentColor = Color.White
@@ -126,7 +144,7 @@ class MainActivity : ComponentActivity() {
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
                     when (currentBottomTab) {
-                        "Schedule" -> ScheduleScreen()
+                        "Schedule" -> ScheduleScreen(viewModel) // Live Schedule
                         "Results" -> {
                             if (selectedTeamId == null) {
                                 if (viewModel.isDriversTab.value) {
@@ -150,9 +168,67 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ScheduleScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Race Schedule Coming Soon", color = Color.White, style = MaterialTheme.typography.headlineSmall)
+fun ScheduleScreen(viewModel: MainViewModel) {
+    val raceList = viewModel.schedule.value // Observe live API data
+
+    if (raceList.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Color(0xFFE10600))
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            items(raceList) { race ->
+                RaceCard(race)
+            }
+        }
+    }
+}
+
+@Composable
+fun RaceCard(race: APIRace) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color(0xFF38383F))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "ROUND ${race.round}",
+                    color = Color(0xFFE10600),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = race.raceName.uppercase(),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Black,
+                        fontStyle = FontStyle.Italic
+                    )
+                )
+                Text(
+                    text = "${race.Circuit.Location.locality}, ${race.Circuit.Location.country}",
+                    color = Color.LightGray,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Text(
+                text = race.date,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 }
 
