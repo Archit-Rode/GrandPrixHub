@@ -34,10 +34,14 @@ class MainActivity : ComponentActivity() {
             val viewModel: MainViewModel = viewModel()
             var selectedTeamId by remember { mutableStateOf<String?>(null) }
 
+            // State for Bottom Navigation
+            var currentBottomTab by remember { mutableStateOf("Results") }
+
             Scaffold(
                 containerColor = Color(0xFF15151E),
                 topBar = {
-                    if (selectedTeamId == null) {
+                    // Top Bar and Tabs only show in the "Results" section
+                    if (selectedTeamId == null && currentBottomTab == "Results") {
                         Column {
                             CenterAlignedTopAppBar(
                                 title = {
@@ -81,25 +85,74 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                },
+                // Bottom Navigation Implementation
+                bottomBar = {
+                    NavigationBar(
+                        containerColor = Color(0xFF1F1F27),
+                        contentColor = Color.White
+                    ) {
+                        NavigationBarItem(
+                            selected = currentBottomTab == "Schedule",
+                            onClick = {
+                                currentBottomTab = "Schedule"
+                                selectedTeamId = null
+                            },
+                            label = { Text("Schedule", fontWeight = FontWeight.Bold) },
+                            icon = { Icon(painterResource(android.R.drawable.ic_menu_today), contentDescription = null) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFFE10600),
+                                selectedTextColor = Color(0xFFE10600),
+                                unselectedIconColor = Color.Gray,
+                                unselectedTextColor = Color.Gray,
+                                indicatorColor = Color.Transparent
+                            )
+                        )
+                        NavigationBarItem(
+                            selected = currentBottomTab == "Results",
+                            onClick = { currentBottomTab = "Results" },
+                            label = { Text("Results", fontWeight = FontWeight.Bold) },
+                            icon = { Icon(painterResource(android.R.drawable.ic_menu_sort_by_size), contentDescription = null) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFFE10600),
+                                selectedTextColor = Color(0xFFE10600),
+                                unselectedIconColor = Color.Gray,
+                                unselectedTextColor = Color.Gray,
+                                indicatorColor = Color.Transparent
+                            )
+                        )
+                    }
                 }
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
-                    if (selectedTeamId == null) {
-                        if (viewModel.isDriversTab.value) {
-                            DriverListScreen(viewModel)
-                        } else {
-                            ConstructorListScreen(viewModel) { teamId -> selectedTeamId = teamId }
+                    when (currentBottomTab) {
+                        "Schedule" -> ScheduleScreen()
+                        "Results" -> {
+                            if (selectedTeamId == null) {
+                                if (viewModel.isDriversTab.value) {
+                                    DriverListScreen(viewModel)
+                                } else {
+                                    ConstructorListScreen(viewModel) { teamId -> selectedTeamId = teamId }
+                                }
+                            } else {
+                                TeamDetailScreen(
+                                    teamId = selectedTeamId!!,
+                                    viewModel = viewModel,
+                                    onBack = { selectedTeamId = null }
+                                )
+                            }
                         }
-                    } else {
-                        TeamDetailScreen(
-                            teamId = selectedTeamId!!,
-                            viewModel = viewModel,
-                            onBack = { selectedTeamId = null }
-                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ScheduleScreen() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Race Schedule Coming Soon", color = Color.White, style = MaterialTheme.typography.headlineSmall)
     }
 }
 
@@ -211,27 +264,19 @@ fun DriverCard(standing: DriverStanding) {
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Rank on the far left
             Text(
                 text = standing.position,
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.width(24.dp) // Fixed width keeps the color strips aligned
+                modifier = Modifier.width(24.dp)
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // 2. Team Color Strip
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(45.dp)
-                    .background(teamColor)
-            )
+            Box(modifier = Modifier.width(4.dp).height(45.dp).background(teamColor))
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // 3. Driver Name and Details
             Column {
                 Text(
                     text = driver.familyName.uppercase(),
@@ -241,16 +286,11 @@ fun DriverCard(standing: DriverStanding) {
                         fontStyle = FontStyle.Italic
                     )
                 )
-                Text(
-                    text = driver.givenName,
-                    color = Color.LightGray,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text(text = driver.givenName, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 4. Points Display Bubble
             Surface(
                 color = Color.White.copy(alpha = 0.05f),
                 shape = RoundedCornerShape(8.dp),
@@ -266,7 +306,6 @@ fun DriverCard(standing: DriverStanding) {
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // 5. Driver Number in the background
             Text(
                 text = driver.permanentNumber,
                 color = Color.White.copy(alpha = 0.07f),
@@ -275,6 +314,7 @@ fun DriverCard(standing: DriverStanding) {
         }
     }
 }
+
 @Composable
 fun ConstructorCard(standing: ConstructorStanding, onTeamClick: (String) -> Unit) {
     val team = standing.Constructor
@@ -293,27 +333,19 @@ fun ConstructorCard(standing: ConstructorStanding, onTeamClick: (String) -> Unit
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Rank on the far left
             Text(
                 text = standing.position,
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.width(24.dp) // Matches DriverCard alignment
+                modifier = Modifier.width(24.dp)
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // 2. Team Color Strip
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(40.dp)
-                    .background(teamColor)
-            )
+            Box(modifier = Modifier.width(4.dp).height(40.dp).background(teamColor))
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // 3. Team Name and Nationality
             Column {
                 Text(
                     text = team.name.uppercase(),
@@ -323,16 +355,11 @@ fun ConstructorCard(standing: ConstructorStanding, onTeamClick: (String) -> Unit
                         fontStyle = FontStyle.Italic
                     )
                 )
-                Text(
-                    text = team.nationality,
-                    color = teamColor,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text(text = team.nationality, color = teamColor, style = MaterialTheme.typography.bodyMedium)
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 4. Team Points Display
             Text(
                 text = "${standing.points} PTS",
                 color = Color.White,
@@ -340,12 +367,11 @@ fun ConstructorCard(standing: ConstructorStanding, onTeamClick: (String) -> Unit
             )
 
             Spacer(modifier = Modifier.width(12.dp))
-
-            // 5. Navigation Arrow
             Text(text = ">", color = Color.Gray)
         }
     }
 }
+
 @Composable
 fun DriverDetailCard(standing: DriverStanding, teamColor: Color) {
     val driver = standing.Driver
@@ -372,7 +398,6 @@ fun DriverDetailCard(standing: DriverStanding, teamColor: Color) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                     Text("NO. ${driver.permanentNumber}", color = teamColor, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.width(12.dp))
-                    // Rank display in detail
                     Text("RANK ${standing.position}", color = Color.Gray, fontSize = 12.sp)
                 }
             }
