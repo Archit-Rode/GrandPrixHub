@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -40,7 +43,6 @@ class MainActivity : ComponentActivity() {
             Scaffold(
                 containerColor = Color(0xFF15151E),
                 topBar = {
-                    // Top Bar and Tabs only show in the "Results" section
                     if (selectedTeamId == null && currentBottomTab == "Results") {
                         Column {
                             CenterAlignedTopAppBar(
@@ -85,7 +87,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else if (currentBottomTab == "Schedule") {
-                        // Top bar for Schedule tab showing current year
                         CenterAlignedTopAppBar(
                             title = {
                                 Text(
@@ -105,7 +106,6 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 bottomBar = {
-                    // NavigationBar for Schedule and Results
                     NavigationBar(
                         containerColor = Color(0xFF1F1F27),
                         contentColor = Color.White
@@ -144,7 +144,7 @@ class MainActivity : ComponentActivity() {
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
                     when (currentBottomTab) {
-                        "Schedule" -> ScheduleScreen(viewModel) // Live Schedule
+                        "Schedule" -> ScheduleScreen(viewModel)
                         "Results" -> {
                             if (selectedTeamId == null) {
                                 if (viewModel.isDriversTab.value) {
@@ -167,9 +167,23 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Helper to calculate and format the race weekend
+fun formatRaceWeekend(apiDate: String): String {
+    return try {
+        val raceDate = LocalDate.parse(apiDate)
+        val startDate = raceDate.minusDays(2)
+        val monthFormatter = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH)
+        val month = raceDate.format(monthFormatter)
+
+        "${startDate.dayOfMonth}-${raceDate.dayOfMonth} $month"
+    } catch (e: Exception) {
+        apiDate
+    }
+}
+
 @Composable
 fun ScheduleScreen(viewModel: MainViewModel) {
-    val raceList = viewModel.schedule.value // Observe live API data
+    val raceList = viewModel.schedule.value
 
     if (raceList.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -222,8 +236,9 @@ fun RaceCard(race: APIRace) {
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+            // Displaying the calculated weekend range
             Text(
-                text = race.date,
+                text = formatRaceWeekend(race.date),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.bodyMedium
