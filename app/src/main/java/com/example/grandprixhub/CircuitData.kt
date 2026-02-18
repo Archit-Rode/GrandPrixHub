@@ -25,7 +25,21 @@ object CircuitRepository {
             "A legendary driver favorite. The only 'figure-eight' track on the calendar, featuring the high-speed 130R corner.",
             R.drawable.suzuka
         ),
-        
+        "sakhir" to CircuitDetail(
+            57,
+            "A desert oasis. The Bahrain International Circuit is famous for its night racing and heavy braking zones that encourage overtaking.",
+            R.drawable.sakhir
+        ),
+        "jeddah" to CircuitDetail(
+            50,
+            "The world's fastest street circuit. Hugging the Red Sea coast, it features 27 high-speed corners and walls that leave no room for error.",
+            R.drawable.jeddah
+        ),
+        "miami" to CircuitDetail(
+            57,
+            "A temporary circuit around the Hard Rock Stadium. It blends a street-circuit feel with a permanent track's high-speed sweeps.",
+            R.drawable.miami
+        ),
     )
 
     fun getDetails(circuitId: String): CircuitDetail {
