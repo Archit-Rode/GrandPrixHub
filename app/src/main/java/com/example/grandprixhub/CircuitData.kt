@@ -70,6 +70,32 @@ object CircuitRepository {
             "The longest track on the calendar. Features the iconic Eau Rouge/Raidillon climb and unpredictable Ardennes forest weather.",
             R.drawable.spa
         ),
+        "hungaroring" to CircuitDetail(
+            70,
+            "Often called 'Monaco without walls.' A twisty, technical track where heat and tire management are the biggest challenges.",
+            R.drawable.hungaroring
+        ),
+        "zandvoort" to CircuitDetail(
+            72,
+            "A rollercoaster by the North Sea. Famous for its steep 18-degree banked corners and incredible atmosphere.",
+            R.drawable.zandvoort
+        ),
+        "monza" to CircuitDetail(
+            53,
+            "The Temple of Speed. The fastest track on the calendar, where cars run minimum downforce to fly through the Royal Park.",
+            R.drawable.monza
+        ),
+        "madring" to CircuitDetail(
+            54,
+            "The 2026 debutant. A new street-style circuit around the IFEMA exhibition center, marking a new era for the Spanish GP.",
+            R.drawable.madrid
+        ),
+        "baku" to CircuitDetail(
+            51,
+            "City of Winds. Features a massive 2km main straight and a tight section passing the historic Old City castle walls.",
+            R.drawable.baku
+        ),
+
     )
 
     fun getDetails(circuitId: String): CircuitDetail {
