@@ -30,6 +30,7 @@ data class APIRace(
 )
 
 data class Circuit(
+    val circuitId: String, // ADDED: Required for lookup in CircuitRepository
     val circuitName: String,
     val Location: Location
 )

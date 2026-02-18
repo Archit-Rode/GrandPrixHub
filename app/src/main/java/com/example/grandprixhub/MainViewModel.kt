@@ -15,8 +15,11 @@ class MainViewModel : ViewModel() {
     val drivers = mutableStateOf<List<DriverStanding>>(emptyList())
     val constructors = mutableStateOf<List<ConstructorStanding>>(emptyList())
 
-    // NEW: Real-time Schedule state
+    // Real-time Schedule state
     val schedule = mutableStateOf<List<APIRace>>(emptyList())
+
+    // NEW: State for the selected race to handle navigation to the detail screen
+    val selectedRace = mutableStateOf<APIRace?>(null)
 
     // 2. Setup Retrofit with Mirror URL and User-Agent
     private val retrofit = Retrofit.Builder()
@@ -41,6 +44,15 @@ class MainViewModel : ViewModel() {
         fetchData()
     }
 
+    // NEW: Helper functions for race selection navigation
+    fun selectRace(race: APIRace) {
+        selectedRace.value = race
+    }
+
+    fun clearSelectedRace() {
+        selectedRace.value = null
+    }
+
     // 3. Trigger new fetch when the season is changed via the dropdown
     fun updateYear(newYear: String) {
         selectedYear.value = newYear
@@ -54,7 +66,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // NEW: Fetch Schedule for the current selected year
+    // Fetch Schedule for the current selected year
     private fun fetchSchedule(year: String) {
         viewModelScope.launch {
             try {

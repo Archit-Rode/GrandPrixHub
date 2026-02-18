@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -86,7 +87,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
-                    } else if (currentBottomTab == "Schedule") {
+                    } else if (currentBottomTab == "Schedule" && viewModel.selectedRace.value == null) {
                         CenterAlignedTopAppBar(
                             title = {
                                 Text(
@@ -115,6 +116,7 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 currentBottomTab = "Schedule"
                                 selectedTeamId = null
+                                viewModel.clearSelectedRace() // Clear race when switching back
                             },
                             label = { Text("Schedule", fontWeight = FontWeight.Bold) },
                             icon = { Icon(painterResource(android.R.drawable.ic_menu_today), contentDescription = null) },
@@ -128,7 +130,10 @@ class MainActivity : ComponentActivity() {
                         )
                         NavigationBarItem(
                             selected = currentBottomTab == "Results",
-                            onClick = { currentBottomTab = "Results" },
+                            onClick = {
+                                currentBottomTab = "Results"
+                                viewModel.clearSelectedRace()
+                            },
                             label = { Text("Results", fontWeight = FontWeight.Bold) },
                             icon = { Icon(painterResource(android.R.drawable.ic_menu_sort_by_size), contentDescription = null) },
                             colors = NavigationBarItemDefaults.colors(
@@ -144,7 +149,13 @@ class MainActivity : ComponentActivity() {
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
                     when (currentBottomTab) {
-                        "Schedule" -> ScheduleScreen(viewModel)
+                        "Schedule" -> {
+                            if (viewModel.selectedRace.value == null) {
+                                ScheduleScreen(viewModel)
+                            } else {
+                                RaceDetailScreen(viewModel)
+                            }
+                        }
                         "Results" -> {
                             if (selectedTeamId == null) {
                                 if (viewModel.isDriversTab.value) {
@@ -195,18 +206,19 @@ fun ScheduleScreen(viewModel: MainViewModel) {
             contentPadding = PaddingValues(16.dp)
         ) {
             items(raceList) { race ->
-                RaceCard(race)
+                RaceCard(race = race, onClick = { viewModel.selectRace(race) })
             }
         }
     }
 }
 
 @Composable
-fun RaceCard(race: APIRace) {
+fun RaceCard(race: APIRace, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp)
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, Color(0xFF38383F))
@@ -236,7 +248,6 @@ fun RaceCard(race: APIRace) {
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            // Displaying the calculated weekend range
             Text(
                 text = formatRaceWeekend(race.date),
                 color = Color.White,
@@ -244,6 +255,95 @@ fun RaceCard(race: APIRace) {
                 style = MaterialTheme.typography.bodyMedium
             )
         }
+    }
+}
+
+@Composable
+fun RaceDetailScreen(viewModel: MainViewModel) {
+    val race = viewModel.selectedRace.value ?: return
+    val circuitData = CircuitRepository.getDetails(race.Circuit.circuitId)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF15151E))
+    ) {
+        TextButton(
+            onClick = { viewModel.clearSelectedRace() },
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Text(
+                "< BACK TO CALENDAR",
+                color = Color(0xFFE10600),
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
+            item {
+                Text(
+                    text = race.raceName.uppercase(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Black
+                )
+
+                Text(
+                    text = race.Circuit.circuitName,
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // CHANGED: Use Image with painterResource for local drawables
+                if (circuitData.imageRes != null) {
+                    Image(
+                        painter = painterResource(id = circuitData.imageRes),
+                        contentDescription = "Circuit Layout",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    DetailInfo("LAPS", "${circuitData.laps}")
+                    DetailInfo("ROUND", race.round)
+                    DetailInfo("DATE", formatRaceWeekend(race.date))
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Text(
+                    text = "HISTORY",
+                    color = Color(0xFFE10600),
+                    fontWeight = FontWeight.ExtraBold,
+                    style = MaterialTheme.typography.labelLarge
+                )
+
+                Text(
+                    text = circuitData.description,
+                    color = Color.LightGray,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DetailInfo(label: String, value: String) {
+    Column {
+        Text(label, color = Color.Gray, style = MaterialTheme.typography.labelSmall)
+        Text(value, color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     }
 }
 
