@@ -19,18 +19,13 @@ object CircuitRepository {
             laps = 56,
             description = "Designed to look like the Chinese character 'shang', this track features one of the longest straights in F1 and a demanding 'snail' turn 1.",
             imageRes = R.drawable.shanghai_circuit
-        )
-//        "monaco" to CircuitDetail(
-//            laps = 78,
-//            description = "The most iconic street race. Monaco is tight, slow, and prestigious. Precision is everything, as there is zero room for error.",
-//            imageUrl = "https://media.formula1.com/image/upload/f_auto,q_auto:best/fom-website/2024/Circuit%20Maps%2016x9/Monaco_Circuit.png"
-//        ),
-//        "silverstone" to CircuitDetail(
-//            laps = 52,
-//            description = "The home of British racing. Silverstone is a former airfield and one of the fastest tracks, featuring the famous Maggotts-Beckets-Chapel complex.",
-//            imageUrl = "https://media.formula1.com/image/upload/f_auto,q_auto:best/fom-website/2023/Circuit%20Maps%2016x9/Great_Britain_Circuit.png"
-//        )
-        // Add other circuit IDs here based on the API response
+        ),
+        "suzuka" to CircuitDetail(
+            53,
+            "A legendary driver favorite. The only 'figure-eight' track on the calendar, featuring the high-speed 130R corner.",
+            R.drawable.suzuka
+        ),
+        
     )
 
     fun getDetails(circuitId: String): CircuitDetail {
