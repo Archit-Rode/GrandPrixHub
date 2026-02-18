@@ -95,6 +95,21 @@ object CircuitRepository {
             "City of Winds. Features a massive 2km main straight and a tight section passing the historic Old City castle walls.",
             R.drawable.baku
         ),
+        "marina_bay" to CircuitDetail(
+            62,
+            "F1's original night race. A grueling street circuit where high humidity and 19 corners test the drivers' physical limits.",
+            R.drawable.marina_bay
+        ),
+        "americas" to CircuitDetail(
+            56,
+            "COTA is a modern classic. It draws inspiration from great European tracks and features a steep climb into Turn 1.",
+            R.drawable.americas
+        ),
+        "rodriguez" to CircuitDetail(
+            71,
+            "High altitude racing. Located 2,200m above sea level, thin air makes the cars extremely fast on straights but low on downforce.",
+            R.drawable.rodriguez
+        ),
 
     )
 
