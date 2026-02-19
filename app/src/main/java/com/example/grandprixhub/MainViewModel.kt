@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.time.LocalDateTime
+import java.time.Duration
+import java.time.format.DateTimeFormatter
 
 class MainViewModel : ViewModel() {
     // 1. UI State: Track active tab, selected year, and data lists
@@ -20,6 +23,7 @@ class MainViewModel : ViewModel() {
 
     // NEW: State for the selected race to handle navigation to the detail screen
     val selectedRace = mutableStateOf<APIRace?>(null)
+    val countdownText = mutableStateOf("")
 
     // 2. Setup Retrofit with Mirror URL and User-Agent
     private val retrofit = Retrofit.Builder()
@@ -58,7 +62,48 @@ class MainViewModel : ViewModel() {
         selectedYear.value = newYear
         fetchData()
     }
+    fun updateCountdown() {
+        // 1. Early exit if schedule is empty to prevent crashes
+        if (schedule.value.isEmpty()) {
+            countdownText.value = "SCHEDULE NOT LOADED"
+            return
+        }
 
+        try {
+            val now = java.time.LocalDateTime.now()
+
+            // 2. Single lookup for the next upcoming race
+            val nextRace = schedule.value.firstOrNull { race ->
+                // Parse date and handle missing/formatted time (e.g., removing 'Z' from UTC)
+                val raceDate = java.time.LocalDate.parse(race.date)
+                val raceTime = java.time.LocalTime.parse(race.time?.replace("Z", "") ?: "15:00:00")
+                val raceDateTime = raceDate.atTime(raceTime)
+
+                raceDateTime.isAfter(now)
+            }
+
+            // 3. Calculate and format the countdown string
+            if (nextRace != null) {
+                val raceDate = java.time.LocalDate.parse(nextRace.date)
+                val raceTime = java.time.LocalTime.parse(nextRace.time?.replace("Z", "") ?: "15:00:00")
+                val raceDateTime = raceDate.atTime(raceTime)
+
+                val diff = java.time.Duration.between(now, raceDateTime)
+
+                val days = diff.toDays()
+                val hours = diff.toHours() % 24
+                val minutes = diff.toMinutes() % 60
+
+                countdownText.value = "${nextRace.raceName.uppercase()}: ${days}D ${hours}H ${minutes}M"
+            } else {
+                countdownText.value = "SEASON COMPLETED"
+            }
+        } catch (e: Exception) {
+            // 4. Graceful error handling for parsing failures
+            countdownText.value = "TIMER UNAVAILABLE"
+            android.util.Log.e("F1DEBUG", "Countdown Error: ${e.message}")
+        }
+    }
     // 4. Helper function to filter drivers by team ID
     fun getDriversForTeam(constructorId: String): List<DriverStanding> {
         return drivers.value.filter { standing ->

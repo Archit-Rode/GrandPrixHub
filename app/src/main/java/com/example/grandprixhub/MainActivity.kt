@@ -196,22 +196,47 @@ fun formatRaceWeekend(apiDate: String): String {
 fun ScheduleScreen(viewModel: MainViewModel) {
     val raceList = viewModel.schedule.value
 
+    // Trigger countdown updates safely
+    LaunchedEffect(raceList) {
+        if (raceList.isNotEmpty()) {
+            while(true) {
+                viewModel.updateCountdown()
+                kotlinx.coroutines.delay(60000)
+            }
+        }
+    }
+
     if (raceList.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Color(0xFFE10600))
         }
     } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp)
-        ) {
-            items(raceList) { race ->
-                RaceCard(race = race, onClick = { viewModel.selectRace(race) })
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Only show header if we have text
+            if (viewModel.countdownText.value.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    color = Color(0xFFE10600),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("NEXT RACE COUNTDOWN", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
+                        Text(viewModel.countdownText.value, color = Color.White, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic))
+                    }
+                }
+            }
+
+            LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(16.dp)) {
+                items(raceList) { race ->
+                    RaceCard(race = race, onClick = { viewModel.selectRace(race) })
+                }
             }
         }
     }
 }
-
 @Composable
 fun RaceCard(race: APIRace, onClick: () -> Unit) {
     Card(
