@@ -110,7 +110,26 @@ object CircuitRepository {
             "High altitude racing. Located 2,200m above sea level, thin air makes the cars extremely fast on straights but low on downforce.",
             R.drawable.rodriguez
         ),
-
+        "interlagos" to CircuitDetail(
+            71,
+            "An anti-clockwise classic in São Paulo. Known for its passionate fans and the famous 'Senna S' sequence.",
+            R.drawable.interlagos
+        ),
+        "vegas" to CircuitDetail(
+            50,
+            "Racing down the Strip. A high-speed street circuit featuring a 1.9km blast past the iconic casinos of Las Vegas.",
+            R.drawable.vegas
+        ),
+        "losail" to CircuitDetail(
+            57,
+            "A fast, flowing layout in Qatar. Originally a MotoGP track, it requires high-speed commitment through its long, sweeping turns.",
+            R.drawable.losail
+        ),
+        "yas_marina" to CircuitDetail(
+            58,
+            "The sunset finale. A spectacular facility in Abu Dhabi where the race starts in daylight and ends under thousands of floodlights.",
+            R.drawable.yas_marina
+        )
     )
 
     fun getDetails(circuitId: String): CircuitDetail {
