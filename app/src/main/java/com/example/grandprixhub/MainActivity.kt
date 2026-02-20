@@ -44,19 +44,31 @@ class MainActivity : ComponentActivity() {
             Scaffold(
                 containerColor = Color(0xFF15151E),
                 topBar = {
-                    if (selectedTeamId == null && currentBottomTab == "Results") {
+                    // We only show this dual header if we aren't viewing a specific team detail or race detail
+                    if (selectedTeamId == null && viewModel.selectedRace.value == null) {
                         Column {
                             CenterAlignedTopAppBar(
                                 title = {
-                                    Text(
-                                        "F1 GRAND PRIX HUB",
-                                        modifier = Modifier.fillMaxWidth(),
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontStyle = FontStyle.Italic
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        // PRIMARY TITLE
+                                        Text(
+                                            text = "F1 GRAND PRIX HUB",
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontStyle = FontStyle.Italic
+                                            )
                                         )
-                                    )
+                                        // DYNAMIC SUBTITLE BASED ON TAB
+                                        Text(
+                                            text = if (currentBottomTab == "Schedule")
+                                                "${viewModel.selectedYear.value} CALENDAR"
+                                            else "STANDINGS",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                color = Color.Gray,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                    }
                                 },
                                 actions = { SeasonDropdown(viewModel) },
                                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -64,46 +76,33 @@ class MainActivity : ComponentActivity() {
                                     titleContentColor = Color.White
                                 )
                             )
-                            TabRow(
-                                selectedTabIndex = if (viewModel.isDriversTab.value) 0 else 1,
-                                containerColor = Color(0xFF15151E),
-                                contentColor = Color(0xFFE10600),
-                                indicator = { tabPositions ->
-                                    TabRowDefaults.SecondaryIndicator(
-                                        Modifier.tabIndicatorOffset(tabPositions[if (viewModel.isDriversTab.value) 0 else 1]),
-                                        color = Color(0xFFE10600)
+
+                            // SHOW TABS ONLY ON RESULTS PAGE
+                            if (currentBottomTab == "Results") {
+                                TabRow(
+                                    selectedTabIndex = if (viewModel.isDriversTab.value) 0 else 1,
+                                    containerColor = Color(0xFF15151E),
+                                    contentColor = Color(0xFFE10600),
+                                    indicator = { tabPositions ->
+                                        TabRowDefaults.SecondaryIndicator(
+                                            Modifier.tabIndicatorOffset(tabPositions[if (viewModel.isDriversTab.value) 0 else 1]),
+                                            color = Color(0xFFE10600)
+                                        )
+                                    }
+                                ) {
+                                    Tab(
+                                        selected = viewModel.isDriversTab.value,
+                                        onClick = { viewModel.isDriversTab.value = true },
+                                        text = { Text("DRIVERS", color = Color.White, fontWeight = FontWeight.Bold) }
+                                    )
+                                    Tab(
+                                        selected = !viewModel.isDriversTab.value,
+                                        onClick = { viewModel.isDriversTab.value = false },
+                                        text = { Text("TEAMS", color = Color.White, fontWeight = FontWeight.Bold) }
                                     )
                                 }
-                            ) {
-                                Tab(
-                                    selected = viewModel.isDriversTab.value,
-                                    onClick = { viewModel.isDriversTab.value = true },
-                                    text = { Text("DRIVERS", color = Color.White, fontWeight = FontWeight.Bold) }
-                                )
-                                Tab(
-                                    selected = !viewModel.isDriversTab.value,
-                                    onClick = { viewModel.isDriversTab.value = false },
-                                    text = { Text("TEAMS", color = Color.White, fontWeight = FontWeight.Bold) }
-                                )
                             }
                         }
-                    } else if (currentBottomTab == "Schedule" && viewModel.selectedRace.value == null) {
-                        CenterAlignedTopAppBar(
-                            title = {
-                                Text(
-                                    "${viewModel.selectedYear.value} CALENDAR",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontStyle = FontStyle.Italic
-                                    )
-                                )
-                            },
-                            actions = { SeasonDropdown(viewModel) },
-                            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                                containerColor = Color(0xFF15151E),
-                                titleContentColor = Color.White
-                            )
-                        )
                     }
                 },
                 bottomBar = {
