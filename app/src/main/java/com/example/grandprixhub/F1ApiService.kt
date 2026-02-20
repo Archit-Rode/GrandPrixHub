@@ -14,6 +14,8 @@ interface F1ApiService {
     // NEW: Real-time Schedule
     @GET("{year}.json")
     suspend fun getSeasonSchedule(@Path("year") year: String): ScheduleResponse
+    @GET("{year}/results/1.json")
+    suspend fun getSeasonResults(@Path("year") year: String): ScheduleResponse
 }
 
 // --- Schedule Data Classes ---
@@ -26,9 +28,13 @@ data class APIRace(
     val raceName: String,
     val Circuit: Circuit,
     val date: String,
-    val time: String? = null // Optional time field
+    val time: String? = null, // Optional time field
+    val Results: List<RaceResult>? = null // NEW: Added to hold winner info
 )
-
+data class RaceResult(
+    val Driver: Driver,
+    val Constructor: Constructor
+)
 data class Circuit(
     val circuitId: String, // ADDED: Required for lookup in CircuitRepository
     val circuitName: String,

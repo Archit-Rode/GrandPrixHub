@@ -238,46 +238,42 @@ fun ScheduleScreen(viewModel: MainViewModel) {
 }
 @Composable
 fun RaceCard(race: APIRace, onClick: () -> Unit) {
+    val winner = race.Results?.firstOrNull()?.Driver // Get the P1 driver
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, Color(0xFF38383F))
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "ROUND ${race.round}",
-                    color = Color(0xFFE10600),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = race.raceName.uppercase(),
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Black,
-                        fontStyle = FontStyle.Italic
-                    )
-                )
-                Text(
-                    text = "${race.Circuit.Location.locality}, ${race.Circuit.Location.country}",
-                    color = Color.LightGray,
-                    style = MaterialTheme.typography.bodySmall
-                )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "ROUND ${race.round}", color = Color(0xFFE10600), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text(text = race.raceName.uppercase(), color = Color.White, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic))
+                }
+                Text(text = formatRaceWeekend(race.date), color = Color.White, fontWeight = FontWeight.Bold)
             }
-            Text(
-                text = formatRaceWeekend(race.date),
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyMedium
-            )
+
+            // NEW: WINNER DISPLAY
+            if (winner != null) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.btn_star_big_on),
+                        contentDescription = null,
+                        tint = Color(0xFFFFD700), // Gold color
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "WINNER: ${winner.givenName} ${winner.familyName.uppercase()}",
+                        color = Color.LightGray,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }

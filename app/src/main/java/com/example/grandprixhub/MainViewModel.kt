@@ -115,9 +115,24 @@ class MainViewModel : ViewModel() {
     private fun fetchSchedule(year: String) {
         viewModelScope.launch {
             try {
-                val response = apiService.getSeasonSchedule(year)
-                schedule.value = response.MRData.RaceTable.Races
-                println("F1DEBUG: Found ${schedule.value.size} races for $year!")
+                // 1. Try to get results first (to show winners for 2024/2025)
+                val resultsResponse = apiService.getSeasonResults(year)
+                val races = resultsResponse.MRData.RaceTable.Races
+
+                if (races.isNotEmpty()) {
+                    // If we found races with results, use them
+                    schedule.value = races
+                    println("F1DEBUG: Found ${races.size} races with results for $year!")
+                } else {
+                    // 2. FALLBACK: If results are empty (like for 2026), fetch the basic calendar
+                    val scheduleResponse = apiService.getSeasonSchedule(year)
+                    schedule.value = scheduleResponse.MRData.RaceTable.Races
+                    println("F1DEBUG: Results empty, loaded basic calendar for $year!")
+                }
+
+                // Update the countdown now that data is loaded
+                updateCountdown()
+
             } catch (e: Exception) {
                 println("F1DEBUG SCHEDULE ERROR: ${e.message}")
                 schedule.value = emptyList()
