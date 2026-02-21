@@ -191,7 +191,15 @@ fun formatRaceWeekend(apiDate: String): String {
         apiDate
     }
 }
-
+fun formatSessionDate(apiDate: String): String {
+    return try {
+        val date = LocalDate.parse(apiDate)
+        val formatter = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH)
+        date.format(formatter)
+    } catch (e: Exception) {
+        apiDate
+    }
+}
 @Composable
 fun ScheduleScreen(viewModel: MainViewModel) {
     val raceList = viewModel.schedule.value
@@ -282,7 +290,10 @@ fun RaceCard(race: APIRace, onClick: () -> Unit) {
 fun TimelineItem(sessionName: String, date: String, time: String, isLast: Boolean) {
     Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         // The Timeline Vertical Line
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(24.dp)
+        ) {
             Box(modifier = Modifier.size(12.dp).background(Color(0xFFE10600), CircleShape))
             if (!isLast) {
                 Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(Color.Gray.copy(alpha = 0.3f)))
@@ -291,8 +302,8 @@ fun TimelineItem(sessionName: String, date: String, time: String, isLast: Boolea
 
         Column(modifier = Modifier.padding(start = 16.dp, bottom = 24.dp)) {
             Text(sessionName, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-            // formatRaceTime is a helper to convert UTC to Local Time
-            Text("${formatRaceWeekend(date)} | ${time.replace("Z", "")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+            // Shows exact session date and time
+            Text("${formatSessionDate(date)} | ${time.replace("Z", "")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -373,22 +384,28 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                     modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
                 )
                 Spacer(modifier = Modifier.height(24.dp))
+                // Inside RaceDetailScreen's LazyColumn item block
                 Text("WEEKEND SCHEDULE", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Column(modifier = Modifier.padding(start = 8.dp)) {
-                    race.FirstPractice?.let { TimelineItem("Practice 1", it.date, it.time, false) }
+                    race.FirstPractice?.let {
+                        TimelineItem("Practice 1", it.date, it.time, false)
+                    }
 
-                    // Handle Sprint vs Standard Weekend
                     if (race.Sprint != null) {
-                        race.Sprint.let { TimelineItem("Sprint Race", it.date, it.time, false) }
+                        race.Qualifying?.let { TimelineItem("Sprint Qualifying", it.date, it.time, false) }
+                        race.Sprint?.let { TimelineItem("Sprint Race", it.date, it.time, false) }
                     } else {
                         race.SecondPractice?.let { TimelineItem("Practice 2", it.date, it.time, false) }
                         race.ThirdPractice?.let { TimelineItem("Practice 3", it.date, it.time, false) }
                     }
 
                     race.Qualifying?.let { TimelineItem("Qualifying", it.date, it.time, false) }
+
+                    // Use race.time with a fallback
                     TimelineItem("Grand Prix", race.date, race.time ?: "15:00:00Z", true)
+
                 }
             }
         }
