@@ -336,23 +336,43 @@ fun RaceCard(race: APIRace, onClick: () -> Unit) {
     }
 }
 @Composable
-fun TimelineItem(sessionName: String, date: String, time: String, isLast: Boolean) {
+fun TimelineItem(
+    sessionName: String,
+    date: String,
+    time: String,
+    isLast: Boolean,
+    status: SessionStatus 
+) {
     Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        // The Timeline Vertical Line
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(24.dp)
-        ) {
-            Box(modifier = Modifier.size(12.dp).background(Color(0xFFE10600), CircleShape))
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(32.dp)) {
+            // Icon Logic: Flag for PAST, Pulsing Red for LIVE, Standard for UPCOMING
+            when (status) {
+                SessionStatus.PAST -> {
+                    Text("🏁", fontSize = 14.sp) // Chequered Flag
+                }
+                SessionStatus.LIVE -> {
+                    // Simple Live Dot (You can add an animation later)
+                    Box(modifier = Modifier.size(12.dp).background(Color.Green, CircleShape))
+                }
+                else -> {
+                    Box(modifier = Modifier.size(12.dp).background(Color(0xFFE10600), CircleShape))
+                }
+            }
+
             if (!isLast) {
                 Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(Color.Gray.copy(alpha = 0.3f)))
             }
         }
 
-        Column(modifier = Modifier.padding(start = 16.dp, bottom = 24.dp)) {
-            Text(sessionName, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-            // Shows exact session date and time
-            Text("${formatSessionDate(date)} | ${time.replace("Z", "")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+        Column(modifier = Modifier.padding(start = 12.dp, bottom = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(sessionName, color = Color.White, fontWeight = FontWeight.Bold)
+                if (status == SessionStatus.LIVE) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("LIVE", color = Color.Green, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Text("$date | $time", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -376,22 +396,18 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
 
         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
             item {
+                // Header Information
                 Text(
                     text = race.raceName.uppercase(),
                     style = MaterialTheme.typography.headlineMedium,
                     color = Color.White,
                     fontWeight = FontWeight.Black
                 )
-
-                Text(
-                    text = race.Circuit.circuitName,
-                    color = Color.Gray,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text(text = race.Circuit.circuitName, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Circuit Image
+                // Circuit Layout Image
                 if (circuitData.imageRes != null) {
                     Image(
                         painter = painterResource(id = circuitData.imageRes),
@@ -403,7 +419,7 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Stats Row
+                // Race Statistics
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -415,7 +431,7 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // History Section
+                // Track History
                 Text("HISTORY", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
                 Text(
                     text = circuitData.description,
@@ -424,7 +440,7 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                     modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
                 )
 
-                // --- WEEKEND SCHEDULE SECTION ---
+                // --- WEEKEND SCHEDULE SECTION WITH LIVE LOGIC ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -432,7 +448,6 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                 ) {
                     Text("WEEKEND SCHEDULE", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
 
-                    // TOGGLE BUTTON
                     TextButton(onClick = { viewModel.toggleTimeMode() }) {
                         Text(
                             text = if (viewModel.timeMode == TimeMode.MY_TIME) "SHOW TRACK TIME" else "SHOW MY TIME",
@@ -449,21 +464,38 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                     val mode = viewModel.timeMode
                     val country = race.Circuit.Location.country
 
+                    // Practice 1
                     race.FirstPractice?.let {
-                        TimelineItem("Practice 1", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false)
+                        TimelineItem(
+                            "Practice 1",
+                            formatSessionDate(it.date),
+                            formatToDisplayTime(it.date, it.time, mode, country),
+                            false,
+                            getSessionStatus(it.date, it.time) // Added Status Logic
+                        )
                     }
 
                     if (race.Sprint != null) {
-                        race.Qualifying?.let { TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
-                        race.Sprint?.let { TimelineItem("Sprint Race", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
+                        // Sprint Weekend Logic
+                        race.Qualifying?.let { TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
+                        race.Sprint?.let { TimelineItem("Sprint Race", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
                     } else {
-                        race.SecondPractice?.let { TimelineItem("Practice 2", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
-                        race.ThirdPractice?.let { TimelineItem("Practice 3", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
+                        // Standard Weekend Logic
+                        race.SecondPractice?.let { TimelineItem("Practice 2", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
+                        race.ThirdPractice?.let { TimelineItem("Practice 3", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
                     }
 
-                    race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
+                    // Main Qualifying
+                    race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
 
-                    TimelineItem("Grand Prix", formatSessionDate(race.date), formatToDisplayTime(race.date, race.time ?: "15:00:00Z", mode, country), true)
+                    // Grand Prix (isLast = true)
+                    TimelineItem(
+                        "Grand Prix",
+                        formatSessionDate(race.date),
+                        formatToDisplayTime(race.date, race.time ?: "15:00:00Z", mode, country),
+                        true,
+                        getSessionStatus(race.date, race.time ?: "15:00:00Z") // Added Status Logic
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(40.dp))
@@ -729,7 +761,27 @@ fun DriverDetailCard(standing: DriverStanding, teamColor: Color) {
         }
     }
 }
+enum class SessionStatus { PAST, LIVE, UPCOMING }
 
+fun getSessionStatus(apiDate: String, apiTime: String): SessionStatus {
+    return try {
+        val utcTime = apiTime.replace("Z", "")
+        val sessionStart = LocalDateTime.parse("${apiDate}T$utcTime")
+            .atZone(ZoneId.of("UTC"))
+        val now = ZonedDateTime.now(ZoneId.of("UTC"))
+
+        // Assume a session lasts roughly 2 hours
+        val sessionEnd = sessionStart.plusHours(2)
+
+        when {
+            now.isAfter(sessionEnd) -> SessionStatus.PAST
+            now.isAfter(sessionStart) && now.isBefore(sessionEnd) -> SessionStatus.LIVE
+            else -> SessionStatus.UPCOMING
+        }
+    } catch (e: Exception) {
+        SessionStatus.UPCOMING
+    }
+}
 fun getTeamColor(id: String?): Color {
     return when (id?.lowercase()) {
         "red_bull" -> Color(0xFF3671C6)
