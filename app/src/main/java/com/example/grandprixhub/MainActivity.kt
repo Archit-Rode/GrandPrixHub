@@ -30,6 +30,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.foundation.shape.CircleShape
+import java.time.*
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -177,7 +178,55 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+// ... scroll to the bottom of MainActivity.kt
 
+// 1. Add the Enum first
+enum class TimeMode { MY_TIME, TRACK_TIME }
+
+// 2. Add the conversion function
+fun formatToDisplayTime(
+    apiDate: String,
+    apiTime: String,
+    mode: TimeMode,
+    circuitCountry: String
+): String {
+    return try {
+        val utcTime = apiTime.replace("Z", "")
+        val utcDateTime = LocalDateTime.parse("${apiDate}T$utcTime")
+            .atZone(ZoneId.of("UTC"))
+
+        val targetTime = when (mode) {
+            TimeMode.MY_TIME -> utcDateTime.withZoneSameInstant(ZoneId.systemDefault())
+            TimeMode.TRACK_TIME -> {
+                val trackZone = getTrackTimeZone(circuitCountry)
+                utcDateTime.withZoneSameInstant(ZoneId.of(trackZone))
+            }
+        }
+        targetTime.format(DateTimeFormatter.ofPattern("HH:mm"))
+    } catch (e: Exception) {
+        apiTime.take(5) // Fallback to raw time if parsing fails
+    }
+}
+//To get track time
+fun getTrackTimeZone(country: String): String {
+    return when (country.lowercase()) {
+        "australia" -> "Australia/Melbourne"
+        "china" -> "Asia/Shanghai"
+        "japan" -> "Asia/Tokyo"
+        "bahrain" -> "Asia/Bahrain"
+        "saudi arabia" -> "Asia/Riyadh"
+        "usa", "united states" -> "America/New_York" // Need logic for Miami/Vegas/Austin
+        "monaco", "italy", "spain", "austria", "belgium", "hungary", "netherlands" -> "Europe/Paris"
+        "uk", "united kingdom" -> "Europe/London"
+        "singapore" -> "Asia/Singapore"
+        "azerbaijan" -> "Asia/Baku"
+        "mexico" -> "America/Mexico_City"
+        "brazil" -> "America/Sao_Paulo"
+        "uae", "abu dhabi" -> "Asia/Dubai"
+        "qatar" -> "Asia/Qatar"
+        else -> "UTC"
+    }
+}
 // Helper to calculate and format the race weekend
 fun formatRaceWeekend(apiDate: String): String {
     return try {
@@ -317,15 +366,12 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
             .fillMaxSize()
             .background(Color(0xFF15151E))
     ) {
+        // Top Navigation Bar
         TextButton(
             onClick = { viewModel.clearSelectedRace() },
             modifier = Modifier.padding(8.dp)
         ) {
-            Text(
-                "< BACK TO CALENDAR",
-                color = Color(0xFFE10600),
-                fontWeight = FontWeight.Bold
-            )
+            Text("< BACK TO CALENDAR", color = Color(0xFFE10600), fontWeight = FontWeight.Bold)
         }
 
         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -345,20 +391,19 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // CHANGED: Use Image with painterResource for local drawables
+                // Circuit Image
                 if (circuitData.imageRes != null) {
                     Image(
                         painter = painterResource(id = circuitData.imageRes),
                         contentDescription = "Circuit Layout",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(250.dp),
+                        modifier = Modifier.fillMaxWidth().height(250.dp),
                         contentScale = ContentScale.Fit
                     )
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // Stats Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -370,48 +415,62 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                Text(
-                    text = "HISTORY",
-                    color = Color(0xFFE10600),
-                    fontWeight = FontWeight.ExtraBold,
-                    style = MaterialTheme.typography.labelLarge
-                )
-
+                // History Section
+                Text("HISTORY", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
                 Text(
                     text = circuitData.description,
                     color = Color.LightGray,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
                 )
-                Spacer(modifier = Modifier.height(24.dp))
-                // Inside RaceDetailScreen's LazyColumn item block
-                Text("WEEKEND SCHEDULE", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
+
+                // --- WEEKEND SCHEDULE SECTION ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("WEEKEND SCHEDULE", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
+
+                    // TOGGLE BUTTON
+                    TextButton(onClick = { viewModel.toggleTimeMode() }) {
+                        Text(
+                            text = if (viewModel.timeMode == TimeMode.MY_TIME) "SHOW TRACK TIME" else "SHOW MY TIME",
+                            color = Color.White.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Column(modifier = Modifier.padding(start = 8.dp)) {
+                    val mode = viewModel.timeMode
+                    val country = race.Circuit.Location.country
+
                     race.FirstPractice?.let {
-                        TimelineItem("Practice 1", it.date, it.time, false)
+                        TimelineItem("Practice 1", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false)
                     }
 
                     if (race.Sprint != null) {
-                        race.Qualifying?.let { TimelineItem("Sprint Qualifying", it.date, it.time, false) }
-                        race.Sprint?.let { TimelineItem("Sprint Race", it.date, it.time, false) }
+                        race.Qualifying?.let { TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
+                        race.Sprint?.let { TimelineItem("Sprint Race", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
                     } else {
-                        race.SecondPractice?.let { TimelineItem("Practice 2", it.date, it.time, false) }
-                        race.ThirdPractice?.let { TimelineItem("Practice 3", it.date, it.time, false) }
+                        race.SecondPractice?.let { TimelineItem("Practice 2", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
+                        race.ThirdPractice?.let { TimelineItem("Practice 3", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
                     }
 
-                    race.Qualifying?.let { TimelineItem("Qualifying", it.date, it.time, false) }
+                    race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false) }
 
-                    // Use race.time with a fallback
-                    TimelineItem("Grand Prix", race.date, race.time ?: "15:00:00Z", true)
-
+                    TimelineItem("Grand Prix", formatSessionDate(race.date), formatToDisplayTime(race.date, race.time ?: "15:00:00Z", mode, country), true)
                 }
+
+                Spacer(modifier = Modifier.height(40.dp))
             }
         }
     }
 }
-
 @Composable
 fun DetailInfo(label: String, value: String) {
     Column {

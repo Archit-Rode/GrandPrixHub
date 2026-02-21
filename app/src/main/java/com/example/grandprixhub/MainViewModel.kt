@@ -9,6 +9,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.time.LocalDateTime
 import java.time.Duration
 import java.time.format.DateTimeFormatter
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 class MainViewModel : ViewModel() {
     // 1. UI State: Track active tab, selected year, and data lists
@@ -52,7 +54,11 @@ class MainViewModel : ViewModel() {
     fun selectRace(race: APIRace) {
         selectedRace.value = race
     }
-
+    // Inside MainViewModel.kt
+    var timeMode by mutableStateOf(TimeMode.MY_TIME)
+    fun toggleTimeMode() {
+        timeMode = if (timeMode == TimeMode.MY_TIME) TimeMode.TRACK_TIME else TimeMode.MY_TIME
+    }
     fun clearSelectedRace() {
         selectedRace.value = null
     }
