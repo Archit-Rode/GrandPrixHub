@@ -29,7 +29,16 @@ data class APIRace(
     val Circuit: Circuit,
     val date: String,
     val time: String? = null, // Optional time field
+    val FirstPractice: Session? = null,
+    val SecondPractice: Session? = null,
+    val ThirdPractice: Session? = null,
+    val Qualifying: Session? = null,
+    val Sprint: Session? = null,
     val Results: List<RaceResult>? = null // NEW: Added to hold winner info
+)
+data class Session(
+    val date: String,
+    val time: String
 )
 data class RaceResult(
     val Driver: Driver,

@@ -29,6 +29,7 @@ import coil.compose.AsyncImage
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.foundation.shape.CircleShape
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -277,7 +278,24 @@ fun RaceCard(race: APIRace, onClick: () -> Unit) {
         }
     }
 }
+@Composable
+fun TimelineItem(sessionName: String, date: String, time: String, isLast: Boolean) {
+    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        // The Timeline Vertical Line
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(modifier = Modifier.size(12.dp).background(Color(0xFFE10600), CircleShape))
+            if (!isLast) {
+                Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(Color.Gray.copy(alpha = 0.3f)))
+            }
+        }
 
+        Column(modifier = Modifier.padding(start = 16.dp, bottom = 24.dp)) {
+            Text(sessionName, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+            // formatRaceTime is a helper to convert UTC to Local Time
+            Text("${formatRaceWeekend(date)} | ${time.replace("Z", "")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
 @Composable
 fun RaceDetailScreen(viewModel: MainViewModel) {
     val race = viewModel.selectedRace.value ?: return
@@ -354,6 +372,24 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
                 )
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("WEEKEND SCHEDULE", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Column(modifier = Modifier.padding(start = 8.dp)) {
+                    race.FirstPractice?.let { TimelineItem("Practice 1", it.date, it.time, false) }
+
+                    // Handle Sprint vs Standard Weekend
+                    if (race.Sprint != null) {
+                        race.Sprint.let { TimelineItem("Sprint Race", it.date, it.time, false) }
+                    } else {
+                        race.SecondPractice?.let { TimelineItem("Practice 2", it.date, it.time, false) }
+                        race.ThirdPractice?.let { TimelineItem("Practice 3", it.date, it.time, false) }
+                    }
+
+                    race.Qualifying?.let { TimelineItem("Qualifying", it.date, it.time, false) }
+                    TimelineItem("Grand Prix", race.date, race.time ?: "15:00:00Z", true)
+                }
             }
         }
     }
