@@ -16,6 +16,8 @@ interface F1ApiService {
     suspend fun getSeasonSchedule(@Path("year") year: String): ScheduleResponse
     @GET("{year}/results/1.json")
     suspend fun getSeasonResults(@Path("year") year: String): ScheduleResponse
+    @GET("drivers/{driverId}/results.json?limit=1000")
+    suspend fun getDriverCareerResults(@Path("driverId") driverId: String): ScheduleResponse
 }
 
 // --- Schedule Data Classes ---
@@ -41,6 +43,8 @@ data class Session(
     val time: String
 )
 data class RaceResult(
+    val position: String,
+    val points: String,
     val Driver: Driver,
     val Constructor: Constructor
 )

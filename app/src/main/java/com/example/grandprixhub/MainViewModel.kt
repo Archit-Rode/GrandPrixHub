@@ -12,6 +12,9 @@ import java.time.format.DateTimeFormatter
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.LazyListState
+import java.time.LocalDate
+import java.time.LocalTime
+import java.util.Locale
 
 class MainViewModel : ViewModel() {
     // 1. UI State: Track active tab, selected year, and data lists
@@ -24,11 +27,17 @@ class MainViewModel : ViewModel() {
     // Real-time Schedule state
     val schedule = mutableStateOf<List<APIRace>>(emptyList())
 
-    // NEW: State for the selected race to handle navigation to the detail screen
+    // State for the selected race to handle navigation to the detail screen
     val selectedRace = mutableStateOf<APIRace?>(null)
     val countdownText = mutableStateOf("")
 
     val scheduleListState = LazyListState()
+
+    // --- NEW: COMPARISON STATES ---
+    var selectedDriver1 by mutableStateOf<DriverStanding?>(null)
+    var selectedDriver2 by mutableStateOf<DriverStanding?>(null)
+    var comparisonMode by mutableStateOf(ComparisonMode.SEASON)
+    var timeMode by mutableStateOf(TimeMode.MY_TIME)
 
     // 2. Setup Retrofit with Mirror URL and User-Agent
     private val retrofit = Retrofit.Builder()
@@ -53,17 +62,38 @@ class MainViewModel : ViewModel() {
         fetchData()
     }
 
-    // NEW: Helper functions for race selection navigation
+    // --- SELECTION & NAVIGATION HELPERS ---
+
     fun selectRace(race: APIRace) {
         selectedRace.value = race
     }
-    // Inside MainViewModel.kt
-    var timeMode by mutableStateOf(TimeMode.MY_TIME)
+
     fun toggleTimeMode() {
         timeMode = if (timeMode == TimeMode.MY_TIME) TimeMode.TRACK_TIME else TimeMode.MY_TIME
     }
+
     fun clearSelectedRace() {
         selectedRace.value = null
+    }
+
+    // Logic to select two distinct drivers for comparison
+    fun selectDriverForComparison(driver: DriverStanding) {
+        when {
+            selectedDriver1 == null -> selectedDriver1 = driver
+            selectedDriver2 == null && driver != selectedDriver1 -> selectedDriver2 = driver
+            driver == selectedDriver1 -> selectedDriver1 = null // Deselect if tapped again
+            driver == selectedDriver2 -> selectedDriver2 = null
+            else -> {
+                // Restart selection if a third different driver is picked
+                selectedDriver1 = driver
+                selectedDriver2 = null
+            }
+        }
+    }
+
+    fun clearComparison() {
+        selectedDriver1 = null
+        selectedDriver2 = null
     }
 
     // 3. Trigger new fetch when the season is changed via the dropdown
@@ -71,34 +101,29 @@ class MainViewModel : ViewModel() {
         selectedYear.value = newYear
         fetchData()
     }
+
     fun updateCountdown() {
-        // 1. Early exit if schedule is empty to prevent crashes
         if (schedule.value.isEmpty()) {
             countdownText.value = "SCHEDULE NOT LOADED"
             return
         }
 
         try {
-            val now = java.time.LocalDateTime.now()
+            val now = LocalDateTime.now()
 
-            // 2. Single lookup for the next upcoming race
             val nextRace = schedule.value.firstOrNull { race ->
-                // Parse date and handle missing/formatted time (e.g., removing 'Z' from UTC)
-                val raceDate = java.time.LocalDate.parse(race.date)
-                val raceTime = java.time.LocalTime.parse(race.time?.replace("Z", "") ?: "15:00:00")
+                val raceDate = LocalDate.parse(race.date)
+                val raceTime = LocalTime.parse(race.time?.replace("Z", "") ?: "15:00:00")
                 val raceDateTime = raceDate.atTime(raceTime)
-
                 raceDateTime.isAfter(now)
             }
 
-            // 3. Calculate and format the countdown string
             if (nextRace != null) {
-                val raceDate = java.time.LocalDate.parse(nextRace.date)
-                val raceTime = java.time.LocalTime.parse(nextRace.time?.replace("Z", "") ?: "15:00:00")
+                val raceDate = LocalDate.parse(nextRace.date)
+                val raceTime = LocalTime.parse(nextRace.time?.replace("Z", "") ?: "15:00:00")
                 val raceDateTime = raceDate.atTime(raceTime)
 
-                val diff = java.time.Duration.between(now, raceDateTime)
-
+                val diff = Duration.between(now, raceDateTime)
                 val days = diff.toDays()
                 val hours = diff.toHours() % 24
                 val minutes = diff.toMinutes() % 60
@@ -108,42 +133,32 @@ class MainViewModel : ViewModel() {
                 countdownText.value = "SEASON COMPLETED"
             }
         } catch (e: Exception) {
-            // 4. Graceful error handling for parsing failures
             countdownText.value = "TIMER UNAVAILABLE"
-            android.util.Log.e("F1DEBUG", "Countdown Error: ${e.message}")
         }
     }
-    // 4. Helper function to filter drivers by team ID
+
     fun getDriversForTeam(constructorId: String): List<DriverStanding> {
         return drivers.value.filter { standing ->
             standing.Constructors.lastOrNull()?.constructorId == constructorId
         }
     }
 
-    // Fetch Schedule for the current selected year
+    // --- DATA FETCHING LOGIC ---
+
     private fun fetchSchedule(year: String) {
         viewModelScope.launch {
             try {
-                // 1. Try to get results first (to show winners for 2024/2025)
                 val resultsResponse = apiService.getSeasonResults(year)
                 val races = resultsResponse.MRData.RaceTable.Races
 
                 if (races.isNotEmpty()) {
-                    // If we found races with results, use them
                     schedule.value = races
-                    println("F1DEBUG: Found ${races.size} races with results for $year!")
                 } else {
-                    // 2. FALLBACK: If results are empty (like for 2026), fetch the basic calendar
                     val scheduleResponse = apiService.getSeasonSchedule(year)
                     schedule.value = scheduleResponse.MRData.RaceTable.Races
-                    println("F1DEBUG: Results empty, loaded basic calendar for $year!")
                 }
-
-                // Update the countdown now that data is loaded
                 updateCountdown()
-
             } catch (e: Exception) {
-                println("F1DEBUG SCHEDULE ERROR: ${e.message}")
                 schedule.value = emptyList()
             }
         }
@@ -151,38 +166,35 @@ class MainViewModel : ViewModel() {
 
     private fun fetchData() {
         val year = selectedYear.value
-
-        // Always fetch schedule along with standings
         fetchSchedule(year)
 
         viewModelScope.launch {
             try {
-                // Fetch Driver Standings
                 val driverResponse = apiService.getDriverStandings(year)
                 val dLists = driverResponse.MRData.StandingsTable.StandingsLists
+                drivers.value = dLists.firstOrNull()?.DriverStandings ?: emptyList()
 
-                if (dLists.isNotEmpty()) {
-                    drivers.value = dLists[0].DriverStandings
-                } else {
-                    drivers.value = emptyList()
-                }
-
-                // Fetch Constructor Standings
                 val constructorResponse = apiService.getConstructorStandings(year)
                 val cLists = constructorResponse.MRData.StandingsTable.StandingsLists
-
-                if (cLists.isNotEmpty()) {
-                    constructors.value = cLists[0].ConstructorStandings
-                } else {
-                    constructors.value = emptyList()
-                }
+                constructors.value = cLists.firstOrNull()?.ConstructorStandings ?: emptyList()
 
             } catch (e: Exception) {
-                println("F1DEBUG ERROR: ${e.message}")
-                e.printStackTrace()
                 drivers.value = emptyList()
                 constructors.value = emptyList()
             }
         }
     }
+
+    // Function to calculate career stats from a list of results
+    fun calculateCareerStats(races: List<APIRace>): Map<String, Int> {
+        val results = races.flatMap { it.Results ?: emptyList() }
+        return mapOf(
+            "Wins" to results.count { it.position == "1" },
+            "Podiums" to results.count { it.position.toIntOrNull() ?: 10 <= 3 },
+            "Entries" to races.size
+        )
+    }
 }
+
+// Global Enums for consistency
+enum class ComparisonMode { SEASON, CAREER }
