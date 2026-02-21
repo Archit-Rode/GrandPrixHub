@@ -11,6 +11,7 @@ import java.time.Duration
 import java.time.format.DateTimeFormatter
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.lazy.LazyListState
 
 class MainViewModel : ViewModel() {
     // 1. UI State: Track active tab, selected year, and data lists
@@ -26,6 +27,8 @@ class MainViewModel : ViewModel() {
     // NEW: State for the selected race to handle navigation to the detail screen
     val selectedRace = mutableStateOf<APIRace?>(null)
     val countdownText = mutableStateOf("")
+
+    val scheduleListState = LazyListState()
 
     // 2. Setup Retrofit with Mirror URL and User-Agent
     private val retrofit = Retrofit.Builder()

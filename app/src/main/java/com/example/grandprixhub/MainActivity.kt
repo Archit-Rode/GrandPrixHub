@@ -286,7 +286,7 @@ fun ScheduleScreen(viewModel: MainViewModel) {
                 }
             }
 
-            LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(16.dp)) {
+            LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(16.dp),state = viewModel.scheduleListState) {
                 items(raceList) { race ->
                     RaceCard(race = race, onClick = { viewModel.selectRace(race) })
                 }
