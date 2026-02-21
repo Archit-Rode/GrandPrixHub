@@ -458,26 +458,37 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
         TextButton(onClick = { viewModel.clearComparison() }) {
             Text("< BACK TO STANDINGS", color = Color(0xFFE10600), fontWeight = FontWeight.Bold)
         }
+
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Button(onClick = { viewModel.comparisonMode = ComparisonMode.SEASON }, colors = ButtonDefaults.buttonColors(containerColor = if (viewModel.comparisonMode == ComparisonMode.SEASON) Color(0xFFE10600) else Color.DarkGray)) { Text("SEASON") }
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = { viewModel.comparisonMode = ComparisonMode.CAREER }, colors = ButtonDefaults.buttonColors(containerColor = if (viewModel.comparisonMode == ComparisonMode.CAREER) Color(0xFFE10600) else Color.DarkGray)) { Text("CAREER") }
         }
+
         Spacer(modifier = Modifier.height(24.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
+
+        // Side-by-Side Images and Stats
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            // Driver 1 Column
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                DriverImage(d1.Driver.driverId) // Helper function added below
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(d1.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
                 StatBox("Points", if(viewModel.comparisonMode == ComparisonMode.SEASON) d1.points else "---")
             }
-            Text("VS", modifier = Modifier.padding(top = 40.dp), color = Color.Gray)
+
+            Text("VS", modifier = Modifier.padding(bottom = 40.dp), color = Color.Gray, fontWeight = FontWeight.Bold)
+
+            // Driver 2 Column
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                DriverImage(d2.Driver.driverId) // Helper function added below
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(d2.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
                 StatBox("Points", if(viewModel.comparisonMode == ComparisonMode.SEASON) d2.points else "---")
             }
         }
     }
 }
-
 @Composable
 fun TimelineItem(sessionName: String, date: String, time: String, isLast: Boolean, status: SessionStatus) {
     Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -658,6 +669,24 @@ fun SelectionSlot(label: String, driver: DriverStanding?, modifier: Modifier = M
             )
         }
     }
+}
+@Composable
+fun DriverImage(driverId: String) {
+    // Standardize IDs for the F1 media server
+    val cleanId = if (driverId.contains("colapinto", ignoreCase = true)) "franco-colapinto"
+    else driverId.split("_").last()
+
+    val imageUrl = "https://media.formula1.com/content/dam/fom-website/drivers/2025Drivers/${cleanId}.png"
+
+    AsyncImage(
+        model = imageUrl,
+        contentDescription = null,
+        modifier = Modifier
+            .size(120.dp)
+            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp)),
+        contentScale = ContentScale.Fit,
+        error = painterResource(android.R.drawable.ic_menu_gallery)
+    )
 }
 fun getTeamColor(id: String?): Color = when (id?.lowercase()) {
     "red_bull" -> Color(0xFF3671C6)
