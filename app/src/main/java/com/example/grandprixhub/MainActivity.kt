@@ -459,32 +459,39 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
             Text("< BACK TO STANDINGS", color = Color(0xFFE10600), fontWeight = FontWeight.Bold)
         }
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            Button(onClick = { viewModel.comparisonMode = ComparisonMode.SEASON }, colors = ButtonDefaults.buttonColors(containerColor = if (viewModel.comparisonMode == ComparisonMode.SEASON) Color(0xFFE10600) else Color.DarkGray)) { Text("SEASON") }
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { viewModel.comparisonMode = ComparisonMode.CAREER }, colors = ButtonDefaults.buttonColors(containerColor = if (viewModel.comparisonMode == ComparisonMode.CAREER) Color(0xFFE10600) else Color.DarkGray)) { Text("CAREER") }
-        }
+        Text(
+            text = "${viewModel.selectedYear.value} SEASON COMPARISON",
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black)
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Side-by-Side Images and Stats
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             // Driver 1 Column
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                DriverImage(d1.Driver.driverId) // Helper function added below
+                DriverImage(d1.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(d1.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
-                StatBox("Points", if(viewModel.comparisonMode == ComparisonMode.SEASON) d1.points else "---")
+
+                StatBox("POINTS", d1.points)
+                StatBox("WINS", d1.wins) // Pulled directly from API standings
+                StatBox("RANK", "#${d1.position}")
             }
 
-            Text("VS", modifier = Modifier.padding(bottom = 40.dp), color = Color.Gray, fontWeight = FontWeight.Bold)
+            Text("VS", modifier = Modifier.padding(bottom = 60.dp), color = Color(0xFFE10600), fontWeight = FontWeight.Black)
 
             // Driver 2 Column
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                DriverImage(d2.Driver.driverId) // Helper function added below
+                DriverImage(d2.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(d2.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
-                StatBox("Points", if(viewModel.comparisonMode == ComparisonMode.SEASON) d2.points else "---")
+
+                StatBox("POINTS", d2.points)
+                StatBox("WINS", d2.wins)
+                StatBox("RANK", "#${d2.position}")
             }
         }
     }

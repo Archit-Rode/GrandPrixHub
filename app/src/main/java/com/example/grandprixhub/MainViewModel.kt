@@ -24,22 +24,20 @@ class MainViewModel : ViewModel() {
     val drivers = mutableStateOf<List<DriverStanding>>(emptyList())
     val constructors = mutableStateOf<List<ConstructorStanding>>(emptyList())
 
-    // Real-time Schedule state
+    // Real-time Schedule state (now holds full race results for podium calculation)
     val schedule = mutableStateOf<List<APIRace>>(emptyList())
 
-    // State for the selected race to handle navigation to the detail screen
+    // State for navigation and countdown
     val selectedRace = mutableStateOf<APIRace?>(null)
     val countdownText = mutableStateOf("")
-
     val scheduleListState = LazyListState()
 
-    // --- NEW: COMPARISON STATES ---
+    // --- SIMPLIFIED COMPARISON STATES (Season Only) ---
     var selectedDriver1 by mutableStateOf<DriverStanding?>(null)
     var selectedDriver2 by mutableStateOf<DriverStanding?>(null)
-    var comparisonMode by mutableStateOf(ComparisonMode.SEASON)
     var timeMode by mutableStateOf(TimeMode.MY_TIME)
 
-    // 2. Setup Retrofit with Mirror URL and User-Agent
+    // 2. Setup Retrofit
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://api.jolpi.ca/ergast/f1/")
         .client(
@@ -58,33 +56,22 @@ class MainViewModel : ViewModel() {
     private val apiService = retrofit.create(F1ApiService::class.java)
 
     init {
-        // Load initial data for the default year (2025)
         fetchData()
     }
 
     // --- SELECTION & NAVIGATION HELPERS ---
 
-    fun selectRace(race: APIRace) {
-        selectedRace.value = race
-    }
+    fun selectRace(race: APIRace) { selectedRace.value = race }
+    fun toggleTimeMode() { timeMode = if (timeMode == TimeMode.MY_TIME) TimeMode.TRACK_TIME else TimeMode.MY_TIME }
+    fun clearSelectedRace() { selectedRace.value = null }
 
-    fun toggleTimeMode() {
-        timeMode = if (timeMode == TimeMode.MY_TIME) TimeMode.TRACK_TIME else TimeMode.MY_TIME
-    }
-
-    fun clearSelectedRace() {
-        selectedRace.value = null
-    }
-
-    // Logic to select two distinct drivers for comparison
     fun selectDriverForComparison(driver: DriverStanding) {
         when {
             selectedDriver1 == null -> selectedDriver1 = driver
             selectedDriver2 == null && driver != selectedDriver1 -> selectedDriver2 = driver
-            driver == selectedDriver1 -> selectedDriver1 = null // Deselect if tapped again
+            driver == selectedDriver1 -> selectedDriver1 = null
             driver == selectedDriver2 -> selectedDriver2 = null
             else -> {
-                // Restart selection if a third different driver is picked
                 selectedDriver1 = driver
                 selectedDriver2 = null
             }
@@ -96,64 +83,24 @@ class MainViewModel : ViewModel() {
         selectedDriver2 = null
     }
 
-    // 3. Trigger new fetch when the season is changed via the dropdown
+    // --- DATA FETCHING ---
+
     fun updateYear(newYear: String) {
         selectedYear.value = newYear
         fetchData()
     }
 
-    fun updateCountdown() {
-        if (schedule.value.isEmpty()) {
-            countdownText.value = "SCHEDULE NOT LOADED"
-            return
-        }
-
-        try {
-            val now = LocalDateTime.now()
-
-            val nextRace = schedule.value.firstOrNull { race ->
-                val raceDate = LocalDate.parse(race.date)
-                val raceTime = LocalTime.parse(race.time?.replace("Z", "") ?: "15:00:00")
-                val raceDateTime = raceDate.atTime(raceTime)
-                raceDateTime.isAfter(now)
-            }
-
-            if (nextRace != null) {
-                val raceDate = LocalDate.parse(nextRace.date)
-                val raceTime = LocalTime.parse(nextRace.time?.replace("Z", "") ?: "15:00:00")
-                val raceDateTime = raceDate.atTime(raceTime)
-
-                val diff = Duration.between(now, raceDateTime)
-                val days = diff.toDays()
-                val hours = diff.toHours() % 24
-                val minutes = diff.toMinutes() % 60
-
-                countdownText.value = "${nextRace.raceName.uppercase()}: ${days}D ${hours}H ${minutes}M"
-            } else {
-                countdownText.value = "SEASON COMPLETED"
-            }
-        } catch (e: Exception) {
-            countdownText.value = "TIMER UNAVAILABLE"
-        }
-    }
-
-    fun getDriversForTeam(constructorId: String): List<DriverStanding> {
-        return drivers.value.filter { standing ->
-            standing.Constructors.lastOrNull()?.constructorId == constructorId
-        }
-    }
-
-    // --- DATA FETCHING LOGIC ---
-
     private fun fetchSchedule(year: String) {
         viewModelScope.launch {
             try {
-                val resultsResponse = apiService.getSeasonResults(year)
+                // Fetch full results to ensure we have P1, P2, and P3 data
+                val resultsResponse = apiService.getFullSeasonResults(year)
                 val races = resultsResponse.MRData.RaceTable.Races
 
                 if (races.isNotEmpty()) {
                     schedule.value = races
                 } else {
+                    // Fallback to basic calendar if no results exist yet (e.g., 2026)
                     val scheduleResponse = apiService.getSeasonSchedule(year)
                     schedule.value = scheduleResponse.MRData.RaceTable.Races
                 }
@@ -177,7 +124,6 @@ class MainViewModel : ViewModel() {
                 val constructorResponse = apiService.getConstructorStandings(year)
                 val cLists = constructorResponse.MRData.StandingsTable.StandingsLists
                 constructors.value = cLists.firstOrNull()?.ConstructorStandings ?: emptyList()
-
             } catch (e: Exception) {
                 drivers.value = emptyList()
                 constructors.value = emptyList()
@@ -185,16 +131,28 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // Function to calculate career stats from a list of results
-    fun calculateCareerStats(races: List<APIRace>): Map<String, Int> {
-        val results = races.flatMap { it.Results ?: emptyList() }
-        return mapOf(
-            "Wins" to results.count { it.position == "1" },
-            "Podiums" to results.count { it.position.toIntOrNull() ?: 10 <= 3 },
-            "Entries" to races.size
-        )
+    fun updateCountdown() {
+        if (schedule.value.isEmpty()) return
+        try {
+            val now = LocalDateTime.now()
+            val nextRace = schedule.value.firstOrNull { race ->
+                val raceDateTime = LocalDate.parse(race.date).atTime(LocalTime.parse(race.time?.replace("Z", "") ?: "15:00:00"))
+                raceDateTime.isAfter(now)
+            }
+
+            if (nextRace != null) {
+                val raceDateTime = LocalDate.parse(nextRace.date).atTime(LocalTime.parse(nextRace.time?.replace("Z", "") ?: "15:00:00"))
+                val diff = Duration.between(now, raceDateTime)
+                countdownText.value = "${nextRace.raceName.uppercase()}: ${diff.toDays()}D ${diff.toHours() % 24}H ${diff.toMinutes() % 60}M"
+            } else {
+                countdownText.value = "SEASON COMPLETED"
+            }
+        } catch (e: Exception) {
+            countdownText.value = "TIMER UNAVAILABLE"
+        }
+    }
+
+    fun getDriversForTeam(constructorId: String): List<DriverStanding> {
+        return drivers.value.filter { it.Constructors.lastOrNull()?.constructorId == constructorId }
     }
 }
-
-// Global Enums for consistency
-enum class ComparisonMode { SEASON, CAREER }
