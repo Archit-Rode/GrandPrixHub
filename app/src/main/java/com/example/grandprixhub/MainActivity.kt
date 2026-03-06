@@ -1,8 +1,14 @@
 package com.example.grandprixhub
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,24 +39,38 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.foundation.shape.CircleShape
 import java.time.*
+
 enum class TimeMode { MY_TIME, TRACK_TIME }
 enum class SessionStatus { PAST, LIVE, UPCOMING }
-//enum class ComparisonMode { SEASON, CAREER }
+
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 1. Initialize the Notification Channel for Android 8.0+
+        createNotificationChannel()
+
         setContent {
             val viewModel: MainViewModel = viewModel()
             var selectedTeamId by remember { mutableStateOf<String?>(null) }
-
-            // State for Bottom Navigation
             var currentBottomTab by remember { mutableStateOf("Results") }
+
+            // 2. Handle Android 13+ Notification Permission Request
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val launcher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { isGranted ->
+                    // Notification permission response handled here
+                }
+                LaunchedEffect(Unit) {
+                    launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
 
             Scaffold(
                 containerColor = Color(0xFF15151E),
                 topBar = {
-                    // Hide header if in Race Detail or Comparison mode
                     val isComparisonMode = viewModel.selectedDriver1 != null && viewModel.selectedDriver2 != null
                     if (selectedTeamId == null && viewModel.selectedRace.value == null && !isComparisonMode) {
                         Column {
@@ -148,7 +168,6 @@ class MainActivity : ComponentActivity() {
                                 indicatorColor = Color.Transparent
                             )
                         )
-                        // Inside NavigationBar in MainActivity.kt
                         NavigationBarItem(
                             selected = currentBottomTab == "Compare",
                             onClick = {
@@ -203,6 +222,20 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "F1 Session Reminders"
+            val descriptionText = "Notifications for Practice, Qualifying, and Races"
+            val importance = NotificationManager.IMPORTANCE_HIGH
+            val channel = NotificationChannel("F1_NOTIFS", name, importance).apply {
+                description = descriptionText
+            }
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
         }
     }
 }
@@ -382,7 +415,7 @@ fun DriverListScreen(viewModel: MainViewModel) {
     val driverStandings = viewModel.drivers.value
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(driverStandings) { standing ->
-            DriverCard(standing) // No longer passing viewModel here
+            DriverCard(standing)
         }
     }
 }
@@ -417,7 +450,7 @@ fun TeamDetailScreen(teamId: String, viewModel: MainViewModel, onBack: () -> Uni
 // --- COMPONENTS ---
 
 @Composable
-fun DriverCard(standing: DriverStanding) { // Removed viewModel parameter
+fun DriverCard(standing: DriverStanding) {
     val driver = standing.Driver
     val teamId = standing.Constructors.lastOrNull()?.constructorId
     val teamColor = getTeamColor(teamId)
@@ -425,10 +458,10 @@ fun DriverCard(standing: DriverStanding) { // Removed viewModel parameter
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp, horizontal = 12.dp), // Removed .clickable
+            .padding(vertical = 6.dp, horizontal = 12.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
         shape = RoundedCornerShape(topStart = 0.dp, bottomEnd = 12.dp),
-        border = BorderStroke(1.dp, Color(0xFF38383F)) // Constant border
+        border = BorderStroke(1.dp, Color(0xFF38383F))
     ) {
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(text = standing.position, color = Color.White, modifier = Modifier.width(24.dp), fontWeight = FontWeight.Bold)
@@ -470,25 +503,21 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
         Spacer(modifier = Modifier.height(24.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            // Driver 1 Column
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 DriverImage(d1.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(d1.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
-
                 StatBox("POINTS", d1.points)
-                StatBox("WINS", d1.wins) // Pulled directly from API standings
+                StatBox("WINS", d1.wins)
                 StatBox("RANK", "#${d1.position}")
             }
 
             Text("VS", modifier = Modifier.padding(bottom = 60.dp), color = Color(0xFFE10600), fontWeight = FontWeight.Black)
 
-            // Driver 2 Column
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 DriverImage(d2.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(d2.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
-
                 StatBox("POINTS", d2.points)
                 StatBox("WINS", d2.wins)
                 StatBox("RANK", "#${d2.position}")
@@ -496,6 +525,7 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
         }
     }
 }
+
 @Composable
 fun TimelineItem(sessionName: String, date: String, time: String, isLast: Boolean, status: SessionStatus) {
     Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -610,6 +640,7 @@ fun getSessionStatus(apiDate: String, apiTime: String): SessionStatus {
         }
     } catch (e: Exception) { SessionStatus.UPCOMING }
 }
+
 @Composable
 fun ComparisonSelectionScreen(viewModel: MainViewModel) {
     val allDrivers = viewModel.drivers.value
@@ -620,10 +651,9 @@ fun ComparisonSelectionScreen(viewModel: MainViewModel) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Showing current selection slots
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SelectionSlot("Driver 1", viewModel.selectedDriver1,modifier = Modifier.weight(1f))
-            SelectionSlot("Driver 2", viewModel.selectedDriver2,modifier = Modifier.weight(1f))
+            SelectionSlot("Driver 1", viewModel.selectedDriver1, modifier = Modifier.weight(1f))
+            SelectionSlot("Driver 2", viewModel.selectedDriver2, modifier = Modifier.weight(1f))
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -657,7 +687,6 @@ fun ComparisonSelectionScreen(viewModel: MainViewModel) {
 @Composable
 fun SelectionSlot(label: String, driver: DriverStanding?, modifier: Modifier = Modifier) {
     Surface(
-        // Use the passed-in modifier here instead of fillMaxWidth(0.5f)
         modifier = modifier.height(60.dp),
         color = Color.White.copy(alpha = 0.05f),
         shape = RoundedCornerShape(8.dp),
@@ -672,14 +701,14 @@ fun SelectionSlot(label: String, driver: DriverStanding?, modifier: Modifier = M
                 text = driver?.Driver?.familyName?.uppercase() ?: "EMPTY",
                 color = if (driver != null) Color.White else Color.DarkGray,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1 // Prevents layout breaks if names are long
+                maxLines = 1
             )
         }
     }
 }
+
 @Composable
 fun DriverImage(driverId: String) {
-    // Standardize IDs for the F1 media server
     val cleanId = if (driverId.contains("colapinto", ignoreCase = true)) "franco-colapinto"
     else driverId.split("_").last()
 
@@ -695,6 +724,7 @@ fun DriverImage(driverId: String) {
         error = painterResource(android.R.drawable.ic_menu_gallery)
     )
 }
+
 fun getTeamColor(id: String?): Color = when (id?.lowercase()) {
     "red_bull" -> Color(0xFF3671C6)
     "mercedes" -> Color(0xFF27F4D2)

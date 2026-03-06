@@ -1,8 +1,10 @@
 package com.example.grandprixhub
 
+import android.app.Application
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.*
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -14,30 +16,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.LazyListState
 import java.time.LocalDate
 import java.time.LocalTime
-import java.util.Locale
+import java.util.concurrent.TimeUnit
 
-class MainViewModel : ViewModel() {
-    // 1. UI State: Track active tab, selected year, and data lists
+// Changed to AndroidViewModel to access application context for WorkManager
+class MainViewModel(application: Application) : AndroidViewModel(application) {
+
+    // 1. UI State
     val isDriversTab = mutableStateOf(true)
     val selectedYear = mutableStateOf("2025")
 
     val drivers = mutableStateOf<List<DriverStanding>>(emptyList())
     val constructors = mutableStateOf<List<ConstructorStanding>>(emptyList())
-
-    // Real-time Schedule state (now holds full race results for podium calculation)
     val schedule = mutableStateOf<List<APIRace>>(emptyList())
 
-    // State for navigation and countdown
     val selectedRace = mutableStateOf<APIRace?>(null)
     val countdownText = mutableStateOf("")
     val scheduleListState = LazyListState()
 
-    // --- SIMPLIFIED COMPARISON STATES (Season Only) ---
+    // Comparison States
     var selectedDriver1 by mutableStateOf<DriverStanding?>(null)
     var selectedDriver2 by mutableStateOf<DriverStanding?>(null)
     var timeMode by mutableStateOf(TimeMode.MY_TIME)
-
-    // 2. Setup Retrofit
+    // 2. Retrofit Setup
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://api.jolpi.ca/ergast/f1/")
         .client(
@@ -59,50 +59,70 @@ class MainViewModel : ViewModel() {
         fetchData()
     }
 
-    // --- SELECTION & NAVIGATION HELPERS ---
+    // --- NOTIFICATION SCHEDULING LOGIC ---
 
-    fun selectRace(race: APIRace) { selectedRace.value = race }
-    fun toggleTimeMode() { timeMode = if (timeMode == TimeMode.MY_TIME) TimeMode.TRACK_TIME else TimeMode.MY_TIME }
-    fun clearSelectedRace() { selectedRace.value = null }
+    private fun scheduleAllSessions(race: APIRace) {
+        fun formatTime(date: String, time: String?) = "${date}T${time?.replace("Z", "") ?: "15:00:00"}"
 
-    fun selectDriverForComparison(driver: DriverStanding) {
-        when {
-            selectedDriver1 == null -> selectedDriver1 = driver
-            selectedDriver2 == null && driver != selectedDriver1 -> selectedDriver2 = driver
-            driver == selectedDriver1 -> selectedDriver1 = null
-            driver == selectedDriver2 -> selectedDriver2 = null
-            else -> {
-                selectedDriver1 = driver
-                selectedDriver2 = null
-            }
-        }
+        // Schedule Practice Sessions
+        race.FirstPractice?.let { scheduleNotification(formatTime(it.date, it.time), "Free Practice 1", race.raceName) }
+        race.SecondPractice?.let { scheduleNotification(formatTime(it.date, it.time), "Free Practice 2", race.raceName) }
+        race.ThirdPractice?.let { scheduleNotification(formatTime(it.date, it.time), "Free Practice 3", race.raceName) }
+
+        // Schedule Qualifying & Sprint
+        race.Qualifying?.let { scheduleNotification(formatTime(it.date, it.time), "Qualifying", race.raceName) }
+        race.Sprint?.let { scheduleNotification(formatTime(it.date, it.time), "Sprint Race", race.raceName) }
+
+        // Schedule Main Race
+        scheduleNotification(formatTime(race.date, race.time), "Main Race", race.raceName)
     }
 
-    fun clearComparison() {
-        selectedDriver1 = null
-        selectedDriver2 = null
+    fun scheduleNotification(sessionTime: String, sessionName: String, raceName: String) {
+        try {
+            val now = LocalDateTime.now()
+            val sessionDate = LocalDateTime.parse(sessionTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+
+            // Calculate delay for 15 minutes before start
+            val delayInMinutes = Duration.between(now, sessionDate).toMinutes() - 15
+            if (delayInMinutes > 0) {
+                val data = Data.Builder()
+                    .putString("SESSION_NAME", sessionName)
+                    .putString("RACE_NAME", raceName)
+                    .build()
+
+                val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
+                    .setInitialDelay(delayInMinutes, TimeUnit.MINUTES)
+                    .setInputData(data)
+                    .build()
+
+                // Use unique work name to avoid duplicates per session
+                WorkManager.getInstance(getApplication()).enqueueUniqueWork(
+                    "${raceName}_${sessionName}",
+                    ExistingWorkPolicy.REPLACE,
+                    workRequest
+                )
+            }
+        } catch (e: Exception) {
+            // Log parsing errors if the API date format is unexpected
+        }
     }
 
     // --- DATA FETCHING ---
 
-    fun updateYear(newYear: String) {
-        selectedYear.value = newYear
-        fetchData()
-    }
-
     private fun fetchSchedule(year: String) {
         viewModelScope.launch {
             try {
-                // Fetch full results to ensure we have P1, P2, and P3 data
+                // Fetch full results for podium calculation/history
                 val resultsResponse = apiService.getFullSeasonResults(year)
                 val races = resultsResponse.MRData.RaceTable.Races
 
                 if (races.isNotEmpty()) {
                     schedule.value = races
+                    races.forEach { scheduleAllSessions(it) } // Trigger scheduling
                 } else {
-                    // Fallback to basic calendar if no results exist yet (e.g., 2026)
                     val scheduleResponse = apiService.getSeasonSchedule(year)
                     schedule.value = scheduleResponse.MRData.RaceTable.Races
+                    scheduleResponse.MRData.RaceTable.Races.forEach { scheduleAllSessions(it) }
                 }
                 updateCountdown()
             } catch (e: Exception) {
@@ -129,6 +149,35 @@ class MainViewModel : ViewModel() {
                 constructors.value = emptyList()
             }
         }
+    }
+
+    // --- HELPERS ---
+
+    fun updateYear(newYear: String) {
+        selectedYear.value = newYear
+        fetchData()
+    }
+
+    fun selectRace(race: APIRace) { selectedRace.value = race }
+    fun clearSelectedRace() { selectedRace.value = null }
+    fun toggleTimeMode() { timeMode = if (timeMode == TimeMode.MY_TIME) TimeMode.TRACK_TIME else TimeMode.MY_TIME }
+
+    fun selectDriverForComparison(driver: DriverStanding) {
+        when {
+            selectedDriver1 == null -> selectedDriver1 = driver
+            selectedDriver2 == null && driver != selectedDriver1 -> selectedDriver2 = driver
+            driver == selectedDriver1 -> selectedDriver1 = null
+            driver == selectedDriver2 -> selectedDriver2 = null
+            else -> {
+                selectedDriver1 = driver
+                selectedDriver2 = null
+            }
+        }
+    }
+
+    fun clearComparison() {
+        selectedDriver1 = null
+        selectedDriver2 = null
     }
 
     fun updateCountdown() {
