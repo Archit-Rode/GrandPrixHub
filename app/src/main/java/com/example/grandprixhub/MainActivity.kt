@@ -613,19 +613,62 @@ fun SeasonDropdown(viewModel: MainViewModel) {
 @Composable
 fun ConstructorCard(standing: ConstructorStanding, onTeamClick: (String) -> Unit) {
     val team = standing.Constructor
-    val teamColor = getTeamColor(team.constructorId)
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 12.dp).clickable { onTeamClick(team.constructorId) }, colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), shape = RoundedCornerShape(topStart = 0.dp, bottomEnd = 12.dp), border = BorderStroke(1.dp, Color(0xFF38383F))) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = standing.position, color = Color.White, modifier = Modifier.width(24.dp), fontWeight = FontWeight.Bold)
+    val teamId = team.constructorId
+    val teamColor = getTeamColor(teamId)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp, horizontal = 12.dp)
+            .clickable { onTeamClick(teamId) },
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
+        shape = RoundedCornerShape(topStart = 0.dp, bottomEnd = 12.dp),
+        border = BorderStroke(1.dp, Color(0xFF38383F))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Null-safe position (Rank)
+            Text(
+                text = standing.position ?: "NR",
+                color = Color.White,
+                modifier = Modifier.width(28.dp),
+                fontWeight = FontWeight.Bold
+            )
+
             Spacer(modifier = Modifier.width(8.dp))
+
+            // Safe team color strip
             Box(modifier = Modifier.width(4.dp).height(40.dp).background(teamColor))
+
             Spacer(modifier = Modifier.width(16.dp))
+
             Column {
-                Text(text = team.name.uppercase(), color = Color.White, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic))
-                Text(text = team.nationality, color = teamColor, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = (team.name ?: "UNKNOWN TEAM").uppercase(),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Black,
+                        fontStyle = FontStyle.Italic
+                    )
+                )
+                Text(
+                    text = team.nationality ?: "International",
+                    color = teamColor,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
+
             Spacer(modifier = Modifier.weight(1f))
-            Text(text = "${standing.points} PTS", color = Color.White, fontWeight = FontWeight.ExtraBold)
+
+            // Null-safe points
+            Text(
+                text = "${standing.points ?: "0"} PTS",
+                color = Color.White,
+                fontWeight = FontWeight.ExtraBold
+            )
+
             Spacer(modifier = Modifier.width(12.dp))
             Text(text = ">", color = Color.Gray)
         }
