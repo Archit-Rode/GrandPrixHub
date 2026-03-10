@@ -112,27 +112,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun fetchSchedule(year: String) {
         viewModelScope.launch {
             try {
-                // 1. Always fetch the FULL calendar first to get all 20+ races
+                // 1. Cleanup old notifications before scheduling new ones
+                WorkManager.getInstance(getApplication()).cancelAllWork()
+
+                // 2. Fetch the FULL calendar
                 val scheduleResponse = apiService.getSeasonSchedule(year)
                 val fullCalendar = scheduleResponse.MRData.RaceTable.Races
 
-                // 2. Fetch the results to see which races have winners
+                // 3. Fetch current results (e.g., Round 1 results in 2026)
                 val resultsResponse = apiService.getFullSeasonResults(year)
                 val resultsList = resultsResponse.MRData.RaceTable.Races
 
-                // 3. Merge them: Use the result data if it exists, otherwise keep the schedule data
+                // 4. Merge results into the calendar (keep future races as-is)
                 val mergedList = fullCalendar.map { calendarRace ->
                     resultsList.find { it.round == calendarRace.round } ?: calendarRace
                 }
 
                 if (mergedList.isNotEmpty()) {
                     schedule.value = mergedList
+                    // Only schedule future notifications
                     mergedList.forEach { scheduleAllSessions(it) }
                 }
-
                 updateCountdown()
             } catch (e: Exception) {
-                // Fallback: If results call fails, just show the calendar
+                // Fallback to schedule-only if results fail
                 try {
                     val scheduleResponse = apiService.getSeasonSchedule(year)
                     schedule.value = scheduleResponse.MRData.RaceTable.Races
@@ -151,12 +154,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val driverResponse = apiService.getDriverStandings(year)
+                // Use .orEmpty() to ensure you never handle a null list
                 val dLists = driverResponse.MRData.StandingsTable.StandingsLists
-                drivers.value = dLists.firstOrNull()?.DriverStandings ?: emptyList()
+                drivers.value = dLists.firstOrNull()?.DriverStandings?.filterNotNull() ?: emptyList()
 
                 val constructorResponse = apiService.getConstructorStandings(year)
                 val cLists = constructorResponse.MRData.StandingsTable.StandingsLists
-                constructors.value = cLists.firstOrNull()?.ConstructorStandings ?: emptyList()
+                constructors.value = cLists.firstOrNull()?.ConstructorStandings?.filterNotNull() ?: emptyList()
             } catch (e: Exception) {
                 drivers.value = emptyList()
                 constructors.value = emptyList()

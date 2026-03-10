@@ -452,7 +452,8 @@ fun TeamDetailScreen(teamId: String, viewModel: MainViewModel, onBack: () -> Uni
 @Composable
 fun DriverCard(standing: DriverStanding) {
     val driver = standing.Driver
-    val teamId = standing.Constructors.lastOrNull()?.constructorId
+    // Use safe access for Constructors list
+    val teamId = standing.Constructors?.lastOrNull()?.constructorId
     val teamColor = getTeamColor(teamId)
 
     Card(
@@ -464,7 +465,8 @@ fun DriverCard(standing: DriverStanding) {
         border = BorderStroke(1.dp, Color(0xFF38383F))
     ) {
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = standing.position, color = Color.White, modifier = Modifier.width(24.dp), fontWeight = FontWeight.Bold)
+            // Null-safe rank/position
+            Text(text = standing.position ?: "NR", color = Color.White, modifier = Modifier.width(24.dp), fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.width(8.dp))
             Box(modifier = Modifier.width(4.dp).height(45.dp).background(teamColor))
             Spacer(modifier = Modifier.width(16.dp))
@@ -474,10 +476,12 @@ fun DriverCard(standing: DriverStanding) {
             }
             Spacer(modifier = Modifier.weight(1f))
             Surface(color = Color.White.copy(alpha = 0.05f), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))) {
-                Text(text = "${standing.points} PTS", color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Bold)
+                Text(text = "${standing.points ?: "0"} PTS", color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Text(text = driver.permanentNumber, color = Color.White.copy(alpha = 0.07f), style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold))
+
+            // Safely handle driver numbers
+            Text(text = driver.permanentNumber ?: "--", color = Color.White.copy(alpha = 0.07f), style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold))
         }
     }
 }
@@ -507,9 +511,9 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
                 DriverImage(d1.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(d1.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
-                StatBox("POINTS", d1.points)
-                StatBox("WINS", d1.wins)
-                StatBox("RANK", "#${d1.position}")
+                StatBox("POINTS", d1.points ?: "0")
+                StatBox("WINS", d1.wins ?: "0")
+                StatBox("RANK", if (d1.position != null) "#${d1.position}" else "NR")
             }
 
             Text("VS", modifier = Modifier.padding(bottom = 60.dp), color = Color(0xFFE10600), fontWeight = FontWeight.Black)
@@ -518,9 +522,9 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
                 DriverImage(d2.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(d2.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
-                StatBox("POINTS", d2.points)
-                StatBox("WINS", d2.wins)
-                StatBox("RANK", "#${d2.position}")
+                StatBox("POINTS", d2.points ?: "0")
+                StatBox("WINS", d2.wins ?: "0")
+                StatBox("RANK", if (d2.position != null) "#${d2.position}" else "NR")
             }
         }
     }
@@ -571,6 +575,7 @@ fun DriverDetailCard(standing: DriverStanding, teamColor: Color) {
     val driver = standing.Driver
     val cleanId = if (driver.driverId.contains("colapinto", ignoreCase = true)) "franco-colapinto" else driver.driverId.split("_").last()
     val imageUrl = "https://media.formula1.com/content/dam/fom-website/drivers/2025Drivers/${cleanId}.png"
+
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), border = BorderStroke(1.dp, teamColor.copy(alpha = 0.3f))) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
             AsyncImage(model = imageUrl, contentDescription = null, modifier = Modifier.size(100.dp).background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp)), contentScale = ContentScale.Fit, error = painterResource(android.R.drawable.ic_menu_gallery))
@@ -579,13 +584,13 @@ fun DriverDetailCard(standing: DriverStanding, teamColor: Color) {
                 Text(driver.familyName.uppercase(), color = Color.White, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold))
                 Text(driver.givenName, color = Color.LightGray)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
-                    Text("NO. ${driver.permanentNumber}", color = teamColor, fontWeight = FontWeight.Bold)
+                    Text("NO. ${driver.permanentNumber ?: "--"}", color = teamColor, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("RANK ${standing.position}", color = Color.Gray, fontSize = 12.sp)
+                    Text("RANK ${standing.position ?: "NR"}", color = Color.Gray, fontSize = 12.sp)
                 }
             }
             Spacer(modifier = Modifier.weight(1f))
-            Text(text = standing.points, color = Color.White, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Black))
+            Text(text = standing.points ?: "0", color = Color.White, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Black))
         }
     }
 }
@@ -736,5 +741,6 @@ fun getTeamColor(id: String?): Color = when (id?.lowercase()) {
     "rb", "racing_bulls" -> Color(0xFF6692FF)
     "sauber", "kick_sauber", "audi" -> Color(0xFF52E252)
     "haas" -> Color(0xFFB6BABD)
-    else -> Color(0xFFE10600)
+    "cadillac" -> Color(0xFFD4AF37) // Added Cadillac 2026 Gold
+    else -> Color(0xFFE10600) // Default F1 Red
 }
