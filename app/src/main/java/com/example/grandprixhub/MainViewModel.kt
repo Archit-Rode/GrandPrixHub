@@ -37,6 +37,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var selectedDriver1 by mutableStateOf<DriverStanding?>(null)
     var selectedDriver2 by mutableStateOf<DriverStanding?>(null)
     var timeMode by mutableStateOf(TimeMode.MY_TIME)
+
+    val currentWeather = mutableStateOf<APIWeather?>(null)
+
     // 2. Retrofit Setup
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://api.jolpi.ca/ergast/f1/")
@@ -227,5 +230,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getDriversForTeam(constructorId: String): List<DriverStanding> {
         return drivers.value.filter { it.Constructors.lastOrNull()?.constructorId == constructorId }
+    }
+
+    fun fetchWeather() {
+        viewModelScope.launch {
+            try {
+                // We use the full OpenF1 URL here to override the Ergast base URL
+                val openF1Url = "https://api.openf1.org/v1/weather?session_key=latest"
+                val response = apiService.getSessionWeather(openF1Url)
+
+                // OpenF1 returns a list of logs; we want the most recent one
+                currentWeather.value = response.lastOrNull()
+            } catch (e: Exception) {
+                currentWeather.value = null
+            }
+        }
     }
 }

@@ -2,7 +2,7 @@ package com.example.grandprixhub
 
 import retrofit2.http.GET
 import retrofit2.http.Path
-
+import retrofit2.http.Url
 interface F1ApiService {
     // EXISTING: Standings
     @GET("{year}/driverStandings.json")
@@ -20,6 +20,10 @@ interface F1ApiService {
     suspend fun getDriverCareerResults(@Path("driverId") driverId: String): ScheduleResponse
     @GET("{year}/results.json?limit=1000")
     suspend fun getFullSeasonResults(@Path("year") year: String): ScheduleResponse
+    @GET
+    suspend fun getSessionWeather(
+        @Url url: String // This will take the full OpenF1 link
+    ): List<APIWeather>
 }
 
 // --- Schedule Data Classes ---
@@ -97,4 +101,12 @@ data class Constructor(
     val constructorId: String,
     val name: String,
     val nationality: String
+)
+
+data class APIWeather(
+    val air_temperature: Double,
+    val track_temperature: Double,
+    val humidity: Double,
+    val rainfall: Int, // 0 for dry, 1 for wet
+    val wind_speed: Double
 )

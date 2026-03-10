@@ -360,6 +360,13 @@ fun RaceCard(race: APIRace, onClick: () -> Unit) {
 fun RaceDetailScreen(viewModel: MainViewModel) {
     val race = viewModel.selectedRace.value ?: return
     val circuitData = CircuitRepository.getDetails(race.Circuit.circuitId)
+    // 1. Get the weather state from your ViewModel
+    val weather = viewModel.currentWeather.value
+
+    // 2. Trigger the weather fetch when this screen opens
+    LaunchedEffect(race.round) {
+        viewModel.fetchWeather()
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF15151E))) {
         TextButton(onClick = { viewModel.clearSelectedRace() }, modifier = Modifier.padding(8.dp)) {
@@ -370,6 +377,10 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
             item {
                 Text(text = race.raceName.uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Black)
                 Text(text = race.Circuit.circuitName, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+
+                // 3. Display the WeatherWidget right here (below the names, above the image)
+                WeatherWidget(weather)
+
                 Spacer(modifier = Modifier.height(24.dp))
                 if (circuitData.imageRes != null) {
                     Image(painter = painterResource(id = circuitData.imageRes), contentDescription = null, modifier = Modifier.fillMaxWidth().height(250.dp), contentScale = ContentScale.Fit)
@@ -409,7 +420,6 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
         }
     }
 }
-
 @Composable
 fun DriverListScreen(viewModel: MainViewModel) {
     val driverStandings = viewModel.drivers.value
@@ -773,6 +783,46 @@ fun DriverImage(driverId: String) {
     )
 }
 
+@Composable
+fun WeatherWidget(weather: APIWeather?) {
+    if (weather == null) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("TRACK CONDITIONS", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (weather.rainfall == 1) "🌧️ WET" else "☀️ DRY",
+                        color = if (weather.rainfall == 1) Color(0xFF64C4FF) else Color(0xFFFFD700),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            WeatherStat("AIR", "${weather.air_temperature}°C")
+            WeatherStat("TRACK", "${weather.track_temperature}°C")
+            WeatherStat("HUMIDITY", "${weather.humidity}%")
+        }
+    }
+}
+
+@Composable
+fun WeatherStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, color = Color.Gray, fontSize = 10.sp)
+        Text(value, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
 fun getTeamColor(id: String?): Color = when (id?.lowercase()) {
     "red_bull" -> Color(0xFF3671C6)
     "mercedes" -> Color(0xFF27F4D2)
@@ -782,8 +832,9 @@ fun getTeamColor(id: String?): Color = when (id?.lowercase()) {
     "alpine" -> Color(0xFF0093CC)
     "williams" -> Color(0xFF64C4FF)
     "rb", "racing_bulls" -> Color(0xFF6692FF)
-    "sauber", "kick_sauber", "audi" -> Color(0xFF52E252)
-    "haas" -> Color(0xFFB6BABD)
+    "sauber", "kick_sauber" -> Color(0xFF52E252)
+    "audi" -> Color(0xFFB1B3B3)
+    "haas" -> Color(0xFFFFFFFF)
     "cadillac" -> Color(0xFFD4AF37) // Added Cadillac 2026 Gold
     else -> Color(0xFFE10600) // Default F1 Red
 }
