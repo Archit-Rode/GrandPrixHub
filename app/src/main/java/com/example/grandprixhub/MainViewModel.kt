@@ -98,7 +98,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Use unique work name to avoid duplicates per session
                 WorkManager.getInstance(getApplication()).enqueueUniqueWork(
                     "${raceName}_${sessionName}",
-                    ExistingWorkPolicy.REPLACE,
+                    ExistingWorkPolicy.KEEP,
                     workRequest
                 )
             }
@@ -112,21 +112,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun fetchSchedule(year: String) {
         viewModelScope.launch {
             try {
-                // Fetch full results for podium calculation/history
-                val resultsResponse = apiService.getFullSeasonResults(year)
-                val races = resultsResponse.MRData.RaceTable.Races
+                // 1. Always fetch the FULL calendar first to get all 20+ races
+                val scheduleResponse = apiService.getSeasonSchedule(year)
+                val fullCalendar = scheduleResponse.MRData.RaceTable.Races
 
-                if (races.isNotEmpty()) {
-                    schedule.value = races
-                    races.forEach { scheduleAllSessions(it) } // Trigger scheduling
-                } else {
-                    val scheduleResponse = apiService.getSeasonSchedule(year)
-                    schedule.value = scheduleResponse.MRData.RaceTable.Races
-                    scheduleResponse.MRData.RaceTable.Races.forEach { scheduleAllSessions(it) }
+                // 2. Fetch the results to see which races have winners
+                val resultsResponse = apiService.getFullSeasonResults(year)
+                val resultsList = resultsResponse.MRData.RaceTable.Races
+
+                // 3. Merge them: Use the result data if it exists, otherwise keep the schedule data
+                val mergedList = fullCalendar.map { calendarRace ->
+                    resultsList.find { it.round == calendarRace.round } ?: calendarRace
                 }
+
+                if (mergedList.isNotEmpty()) {
+                    schedule.value = mergedList
+                    mergedList.forEach { scheduleAllSessions(it) }
+                }
+
                 updateCountdown()
             } catch (e: Exception) {
-                schedule.value = emptyList()
+                // Fallback: If results call fails, just show the calendar
+                try {
+                    val scheduleResponse = apiService.getSeasonSchedule(year)
+                    schedule.value = scheduleResponse.MRData.RaceTable.Races
+                    updateCountdown()
+                } catch (inner: Exception) {
+                    schedule.value = emptyList()
+                }
             }
         }
     }
@@ -184,16 +197,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (schedule.value.isEmpty()) return
         try {
             val now = LocalDateTime.now()
+
+            // Find the next race where the race date/time is in the future
             val nextRace = schedule.value.firstOrNull { race ->
-                val raceDateTime = LocalDate.parse(race.date).atTime(LocalTime.parse(race.time?.replace("Z", "") ?: "15:00:00"))
+                val raceDateTime = LocalDate.parse(race.date)
+                    .atTime(LocalTime.parse(race.time?.replace("Z", "") ?: "15:00:00"))
                 raceDateTime.isAfter(now)
             }
 
             if (nextRace != null) {
-                val raceDateTime = LocalDate.parse(nextRace.date).atTime(LocalTime.parse(nextRace.time?.replace("Z", "") ?: "15:00:00"))
+                val raceDateTime = LocalDate.parse(nextRace.date)
+                    .atTime(LocalTime.parse(nextRace.time?.replace("Z", "") ?: "15:00:00"))
                 val diff = Duration.between(now, raceDateTime)
+
+                // Format to show Days, Hours, and Minutes
                 countdownText.value = "${nextRace.raceName.uppercase()}: ${diff.toDays()}D ${diff.toHours() % 24}H ${diff.toMinutes() % 60}M"
             } else {
+                // Only show completed if there truly are no more races left in the list
                 countdownText.value = "SEASON COMPLETED"
             }
         } catch (e: Exception) {
