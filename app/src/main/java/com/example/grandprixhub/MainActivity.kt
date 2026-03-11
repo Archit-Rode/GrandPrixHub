@@ -330,20 +330,56 @@ fun ScheduleScreen(viewModel: MainViewModel) {
 @Composable
 fun RaceCard(race: APIRace, onClick: () -> Unit) {
     val winner = race.Results?.firstOrNull()?.Driver
+
+    // 1. Identify Sprint Weekends (2026 Season)
+    val isSprint = race.Sprint != null || race.raceName.contains("China", true) ||
+            race.raceName.contains("Miami", true) || race.raceName.contains("Canada", true) ||
+            race.raceName.contains("British", true) || race.raceName.contains("Dutch", true) ||
+            race.raceName.contains("Singapore", true)
+
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            // 2. Subtle background shift for Sprint weekends
+            containerColor = if (isSprint) Color(0xFF25252E) else Color(0xFF1F1F27)
+        ),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color(0xFF38383F))
+        // 3. Red border for Sprint to make it stand out
+        border = BorderStroke(
+            width = if (isSprint) 2.dp else 1.dp,
+            color = if (isSprint) Color(0xFFE10600) else Color(0xFF38383F)
+        )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "ROUND ${race.round}", color = Color(0xFFE10600), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "ROUND ${race.round}", color = Color(0xFFE10600), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+
+                        // 4. Added Sprint Badge
+                        if (isSprint) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                color = Color(0xFFE10600),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "SPRINT",
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Black)
+                                )
+                            }
+                        }
+                    }
                     Text(text = race.raceName.uppercase(), color = Color.White, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic))
                 }
                 Text(text = formatRaceWeekend(race.date), color = Color.White, fontWeight = FontWeight.Bold)
             }
+
             if (winner != null) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
