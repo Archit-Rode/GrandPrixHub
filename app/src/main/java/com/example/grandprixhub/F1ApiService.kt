@@ -3,6 +3,7 @@ package com.example.grandprixhub
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Url
+import com.google.gson.annotations.SerializedName
 interface F1ApiService {
     // EXISTING: Standings
     @GET("{year}/driverStandings.json")
@@ -41,6 +42,8 @@ data class APIRace(
     val SecondPractice: Session? = null,
     val ThirdPractice: Session? = null,
     val Qualifying: Session? = null,
+    @SerializedName("SprintQualifying") // This tells Retrofit to map "SprintShootout" to this variable
+    val SprintShootout: Session?,
     val Sprint: Session? = null,
     val Results: List<RaceResult>? = null // NEW: Added to hold winner info
 )

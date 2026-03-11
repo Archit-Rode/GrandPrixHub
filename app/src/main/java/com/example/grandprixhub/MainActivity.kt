@@ -347,11 +347,6 @@ fun RaceCard(race: APIRace, onClick: () -> Unit) {
             containerColor = if (isSprint) Color(0xFF25252E) else Color(0xFF1F1F27)
         ),
         shape = RoundedCornerShape(12.dp),
-        // 3. Red border for Sprint to make it stand out
-        border = BorderStroke(
-            width = if (isSprint) 2.dp else 1.dp,
-            color = if (isSprint) Color(0xFFE10600) else Color(0xFF38383F)
-        )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -440,15 +435,27 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                 Column(modifier = Modifier.padding(start = 8.dp)) {
                     val mode = viewModel.timeMode
                     val country = race.Circuit.Location.country
+
+                    // 1. Friday: Practice 1
                     race.FirstPractice?.let { TimelineItem("Practice 1", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
+
                     if (race.Sprint != null) {
-                        race.Qualifying?.let { TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
+                        // 2. Friday: Sprint Shootout (Qualifying for the Sprint)
+                        race.SprintShootout?.let { TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
+
+                        // 3. Saturday: Sprint Race
                         race.Sprint?.let { TimelineItem("Sprint Race", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
+
+                        // 4. Saturday: Grand Prix Qualifying
+                        race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
                     } else {
+                        // Traditional Weekend
                         race.SecondPractice?.let { TimelineItem("Practice 2", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
                         race.ThirdPractice?.let { TimelineItem("Practice 3", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
+                        race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
                     }
-                    race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
+
+                    // 5. Sunday: Grand Prix
                     TimelineItem("Grand Prix", formatSessionDate(race.date), formatToDisplayTime(race.date, race.time ?: "15:00:00Z", mode, country), true, getSessionStatus(race.date, race.time ?: "15:00:00Z"))
                 }
                 Spacer(modifier = Modifier.height(40.dp))
