@@ -45,7 +45,7 @@ data class APIRace(
     @SerializedName("SprintQualifying") // This tells Retrofit to map "SprintShootout" to this variable
     val SprintShootout: Session?,
     val Sprint: Session? = null,
-    val Results: List<RaceResult>? = null // NEW: Added to hold winner info
+    val Results: List<RaceResult>? = null, // NEW: Added to hold winner info
 )
 data class Session(
     val date: String,
@@ -55,7 +55,9 @@ data class RaceResult(
     val position: String,
     val points: String,
     val Driver: Driver,
-    val Constructor: Constructor
+    val Constructor: Constructor,
+    val grid: String,
+    val status: String // (e.g., "Finished", "Engine", "+1 Lap")
 )
 data class Circuit(
     val circuitId: String, // ADDED: Required for lookup in CircuitRepository

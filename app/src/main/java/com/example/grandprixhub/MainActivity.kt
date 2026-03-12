@@ -39,6 +39,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.foundation.shape.CircleShape
 import java.time.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 enum class TimeMode { MY_TIME, TRACK_TIME }
 enum class SessionStatus { PAST, LIVE, UPCOMING }
@@ -543,8 +545,23 @@ fun DriverCard(standing: DriverStanding) {
 fun DriverComparisonScreen(viewModel: MainViewModel) {
     val d1 = viewModel.selectedDriver1 ?: return
     val d2 = viewModel.selectedDriver2 ?: return
+    val d1DNA by viewModel.driver1DNA
+    val d2DNA by viewModel.driver2DNA
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF15151E)).padding(16.dp)) {
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(d1.Driver.driverId, d2.Driver.driverId) {
+        viewModel.loadDriverStats(d1.Driver.driverId, true)
+        viewModel.loadDriverStats(d2.Driver.driverId, false)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF15151E))
+            .verticalScroll(scrollState)
+            .padding(16.dp)
+    ) {
         TextButton(onClick = { viewModel.clearComparison() }) {
             Text("< BACK TO STANDINGS", color = Color(0xFFE10600), fontWeight = FontWeight.Bold)
         }
@@ -557,32 +574,76 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier.fillMaxWidth().height(320.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            ComparisonRadar(
+                driver1Name = d1.Driver.familyName,
+                driver2Name = d2.Driver.familyName,
+                driver1Scores = d1DNA,
+                driver2Scores = d2DNA
+            )
+        }
+
+        // --- ADDED THE INSIGHT CARD HERE ---
+        if (d1DNA.isNotEmpty() && d2DNA.isNotEmpty()) {
+            DriverInsightCard(
+                d1Name = d1.Driver.familyName,
+                d2Name = d2.Driver.familyName,
+                d1Scores = d1DNA,
+                d2Scores = d2DNA
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            // Driver 1 Column
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 DriverImage(d1.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(d1.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
+                Spacer(modifier = Modifier.height(8.dp))
                 StatBox("POINTS", d1.points ?: "0")
                 StatBox("WINS", d1.wins ?: "0")
                 StatBox("RANK", if (d1.position != null) "#${d1.position}" else "NR")
             }
 
-            Text("VS", modifier = Modifier.padding(bottom = 60.dp), color = Color(0xFFE10600), fontWeight = FontWeight.Black)
+            Text(
+                text = "VS",
+                modifier = Modifier.padding(bottom = 60.dp),
+                color = Color(0xFFE10600),
+                fontWeight = FontWeight.Black,
+                style = MaterialTheme.typography.headlineSmall
+            )
 
-            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Driver 2 Column
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 DriverImage(d2.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(d2.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
+                Spacer(modifier = Modifier.height(8.dp))
                 StatBox("POINTS", d2.points ?: "0")
                 StatBox("WINS", d2.wins ?: "0")
                 StatBox("RANK", if (d2.position != null) "#${d2.position}" else "NR")
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
-
 @Composable
 fun TimelineItem(sessionName: String, date: String, time: String, isLast: Boolean, status: SessionStatus) {
     Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -863,6 +924,67 @@ fun WeatherStat(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, color = Color.Gray, fontSize = 10.sp)
         Text(value, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun DriverInsightCard(
+    d1Name: String,
+    d2Name: String,
+    d1Scores: Map<String, Float>,
+    d2Scores: Map<String, Float>
+) {
+    // 1. Logic to find the pillar with the largest difference
+    val pillars = listOf("Qualy Pace", "Race Craft", "Peak Performance")
+    val biggestGapPillar = pillars.maxByOrNull {
+        kotlin.math.abs((d1Scores[it] ?: 0f) - (d2Scores[it] ?: 0f))
+    } ?: "Qualy Pace"
+
+    val d1Score = d1Scores[biggestGapPillar] ?: 0f
+    val d2Score = d2Scores[biggestGapPillar] ?: 0f
+    val winner = if (d1Score > d2Score) d1Name else d2Name
+
+    // 2. Human-friendly summary based on the leading pillar
+    val description = when(biggestGapPillar) {
+        "Qualy Pace" -> "is significantly faster over a single lap, making them the favorite for Saturday's Pole Position."
+        "Race Craft" -> "is more aggressive on Sundays, consistently gaining more positions through the field than their rival."
+        "Peak Performance" -> "has a higher 'Clutch' factor, appearing on the podium or top step more frequently when it counts."
+        else -> "shows a different tactical approach to the weekend."
+    }
+
+    // 3. The UI Card
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color(0xFF38383F))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_dialog_info),
+                    contentDescription = null,
+                    tint = Color(0xFFE10600),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "EXPERT ANALYSIS",
+                    color = Color(0xFFE10600),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "$winner $description",
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium,
+                lineHeight = 20.sp
+            )
+        }
     }
 }
 

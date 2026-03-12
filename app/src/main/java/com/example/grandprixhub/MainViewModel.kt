@@ -38,6 +38,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var selectedDriver2 by mutableStateOf<DriverStanding?>(null)
     var timeMode by mutableStateOf(TimeMode.MY_TIME)
 
+    var driver1DNA = mutableStateOf<Map<String, Float>>(emptyMap())
+    var driver2DNA = mutableStateOf<Map<String, Float>>(emptyMap())
+
     val currentWeather = mutableStateOf<APIWeather?>(null)
 
     // 2. Retrofit Setup
@@ -245,5 +248,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 currentWeather.value = null
             }
         }
+    }
+
+    fun loadDriverStats(driverId: String, isDriverOne: Boolean) {
+        viewModelScope.launch {
+            try {
+                // Fetch the last 10-20 results for this driver
+                val response = apiService.getDriverCareerResults(driverId)
+                val results = response.MRData.RaceTable.Races.flatMap { it.Results ?: emptyList() }
+
+                val scores = calculateRadarMetrics(results)
+                if (isDriverOne) driver1DNA.value = scores else driver2DNA.value = scores
+            } catch (e: Exception) { /* Handle error */ }
+        }
+    }
+
+    private fun calculateRadarMetrics(results: List<RaceResult>): Map<String, Float> {
+        if (results.isEmpty()) return emptyMap()
+
+        // 1. Qualy Pace: 10 - (Avg Grid / 2). Capped 1-10.
+        val avgGrid = results.map { it.grid.toFloat() }.average().toFloat()
+        val qualyScore = (11f - avgGrid).coerceIn(1f, 10f)
+
+        // 2. Race Craft: Gain/Loss. Only count finished races.
+        val classified = results.filter { it.status == "Finished" || it.status.contains("Lap") }
+        val avgGained = if (classified.isNotEmpty()) {
+            classified.map { it.grid.toInt() - it.position.toInt() }.average().toFloat()
+        } else 0f
+        val craftScore = (5f + avgGained).coerceIn(1f, 10f)
+
+        // 3. Peak Performance: Wins (3pt) and Podiums (1pt).
+        val wins = results.count { it.position == "1" }
+        val podiums = results.count { it.position.toInt() in 1..3 }
+        val peakScore = ((wins * 3f) + podiums).coerceIn(1f, 10f)
+
+        return mapOf(
+            "Qualy Pace" to qualyScore,
+            "Race Craft" to craftScore,
+            "Peak Performance" to peakScore
+        )
     }
 }
