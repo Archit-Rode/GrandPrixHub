@@ -392,11 +392,10 @@ fun RaceCard(race: APIRace, onClick: () -> Unit) {
 @Composable
 fun RaceDetailScreen(viewModel: MainViewModel) {
     val race = viewModel.selectedRace.value ?: return
+    // This fetches the specific description, laps, and HOTSPOTS for this track
     val circuitData = CircuitRepository.getDetails(race.Circuit.circuitId)
-    // 1. Get the weather state from your ViewModel
     val weather = viewModel.currentWeather.value
 
-    // 2. Trigger the weather fetch when this screen opens
     LaunchedEffect(race.round) {
         viewModel.fetchWeather()
     }
@@ -411,13 +410,19 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                 Text(text = race.raceName.uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Black)
                 Text(text = race.Circuit.circuitName, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
 
-                // 3. Display the WeatherWidget right here (below the names, above the image)
                 WeatherWidget(weather)
 
                 Spacer(modifier = Modifier.height(24.dp))
+
+                // --- DYNAMIC HOTSPOTS ---
                 if (circuitData.imageRes != null) {
-                    Image(painter = painterResource(id = circuitData.imageRes), contentDescription = null, modifier = Modifier.fillMaxWidth().height(250.dp), contentScale = ContentScale.Fit)
+                    CircuitMapWithHotspots(
+                        circuitImage = circuitData.imageRes,
+                        // We now use circuitData.hotspots so they change per track!
+                        hotspots = circuitData.hotspots
+                    )
                 }
+
                 Spacer(modifier = Modifier.height(24.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     DetailInfo("LAPS", "${circuitData.laps}")
@@ -425,39 +430,35 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                     DetailInfo("DATE", formatRaceWeekend(race.date))
                 }
                 Spacer(modifier = Modifier.height(32.dp))
+
                 Text("HISTORY", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
                 Text(text = circuitData.description, color = Color.LightGray, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 8.dp, bottom = 32.dp))
+
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("WEEKEND SCHEDULE", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
                     TextButton(onClick = { viewModel.toggleTimeMode() }) {
                         Text(text = if (viewModel.timeMode == TimeMode.MY_TIME) "SHOW TRACK TIME" else "SHOW MY TIME", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
                 }
+
                 Spacer(modifier = Modifier.height(16.dp))
+
                 Column(modifier = Modifier.padding(start = 8.dp)) {
                     val mode = viewModel.timeMode
                     val country = race.Circuit.Location.country
 
-                    // 1. Friday: Practice 1
                     race.FirstPractice?.let { TimelineItem("Practice 1", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
 
                     if (race.Sprint != null) {
-                        // 2. Friday: Sprint Shootout (Qualifying for the Sprint)
                         race.SprintShootout?.let { TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
-
-                        // 3. Saturday: Sprint Race
                         race.Sprint?.let { TimelineItem("Sprint Race", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
-
-                        // 4. Saturday: Grand Prix Qualifying
                         race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
                     } else {
-                        // Traditional Weekend
                         race.SecondPractice?.let { TimelineItem("Practice 2", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
                         race.ThirdPractice?.let { TimelineItem("Practice 3", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
                         race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
                     }
 
-                    // 5. Sunday: Grand Prix
                     TimelineItem("Grand Prix", formatSessionDate(race.date), formatToDisplayTime(race.date, race.time ?: "15:00:00Z", mode, country), true, getSessionStatus(race.date, race.time ?: "15:00:00Z"))
                 }
                 Spacer(modifier = Modifier.height(40.dp))
