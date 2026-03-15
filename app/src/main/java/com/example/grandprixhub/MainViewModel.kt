@@ -17,6 +17,10 @@ import androidx.compose.foundation.lazy.LazyListState
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.concurrent.TimeUnit
+import java.time.Instant
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import androidx.work.workDataOf
 
 // Changed to AndroidViewModel to access application context for WorkManager
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -85,31 +89,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun scheduleNotification(sessionTime: String, sessionName: String, raceName: String) {
         try {
-            val now = LocalDateTime.now()
-            val sessionDate = LocalDateTime.parse(sessionTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            // 1. Get the current moment in absolute time (UTC)
+            val now = Instant.now()
 
-            // Calculate delay for 15 minutes before start
-            val delayInMinutes = Duration.between(now, sessionDate).toMinutes() - 15
-            if (delayInMinutes > 0) {
-                val data = Data.Builder()
-                    .putString("SESSION_NAME", sessionName)
-                    .putString("RACE_NAME", raceName)
-                    .build()
+            // 2. Parse the API time and explicitly tell Kotlin it is UTC
+            val sessionInstant = LocalDateTime.parse(sessionTime)
+                .atZone(ZoneId.of("UTC"))
+                .toInstant()
+
+            // 3. Calculate delay in seconds for better precision
+            // Subtract 900 seconds (15 minutes)
+            val delayInSeconds = ChronoUnit.SECONDS.between(now, sessionInstant) - (15 * 60)
+
+            if (delayInSeconds > 0) {
+                val data = workDataOf(
+                    "SESSION_NAME" to sessionName,
+                    "RACE_NAME" to raceName
+                )
 
                 val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
-                    .setInitialDelay(delayInMinutes, TimeUnit.MINUTES)
+                    .setInitialDelay(delayInSeconds, TimeUnit.SECONDS)
                     .setInputData(data)
                     .build()
 
-                // Use unique work name to avoid duplicates per session
+                // 4. Use REPLACE to overwrite any old, incorrectly timed tasks
                 WorkManager.getInstance(getApplication()).enqueueUniqueWork(
                     "${raceName}_${sessionName}",
-                    ExistingWorkPolicy.KEEP,
+                    ExistingWorkPolicy.REPLACE,
                     workRequest
                 )
             }
         } catch (e: Exception) {
-            // Log parsing errors if the API date format is unexpected
+            e.printStackTrace()
         }
     }
 

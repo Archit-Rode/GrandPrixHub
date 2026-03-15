@@ -16,8 +16,8 @@ object CircuitRepository {
             description = "Melbourne's Albert Park is a high-speed street circuit. It has hosted the Australian GP since 1996 and is known for its bumpy surface and close walls.",
             imageRes = R.drawable.albert_park,
             hotspots = listOf(
-                CircuitHotspot("Jones", "Turn 1: High-speed braking zone.", 0.3f, 0.6f),
-                CircuitHotspot("Lakeside", "A flat-out blast along the water.", 0.25f, 0.65f)
+                CircuitHotspot("Jones", "Turn 1: High-speed braking zone.", 0.4f, 0.8f),
+                CircuitHotspot("Lakeside", "A flat-out blast along the water.", 0.35f, 0.4f)
             )
         ),
         "shanghai" to CircuitDetail(
@@ -25,8 +25,8 @@ object CircuitRepository {
             description = "Designed to look like the Chinese character 'shang', this track features one of the longest straights in F1 and a demanding 'snail' turn 1.",
             imageRes = R.drawable.shanghai_circuit,
             hotspots = listOf(
-                CircuitHotspot("Turn 1-3", "The tightening snail-shell entry.", 0.72f, 0.28f),
-                CircuitHotspot("Back Straight", "One of the longest straights in F1.", 0.45f, 0.85f)
+                CircuitHotspot("Turn 1-3", "The tightening snail-shell entry.", 0.55f, 0.18f),
+                CircuitHotspot("Back Straight", "One of the longest straights in F1.", 0.45f, 0.8f)
             )
         ),
         "suzuka" to CircuitDetail(
@@ -34,8 +34,8 @@ object CircuitRepository {
             "A legendary driver favorite. The only 'figure-eight' track on the calendar, featuring the high-speed 130R corner.",
             R.drawable.suzuka,
             listOf(
-                CircuitHotspot("130R", "A legendary high-speed left-hander.", 0.15f, 0.42f),
-                CircuitHotspot("The S-Curves", "Testing the car's aerodynamic balance.", 0.68f, 0.22f)
+                CircuitHotspot("130R", "A legendary high-speed left-hander.", 0.45f, 0.42f),
+                CircuitHotspot("The S-Curves", "Testing the car's aerodynamic balance.", 0.73f, 0.7f)
             )
         ),
         "bahrain" to CircuitDetail(
@@ -43,8 +43,8 @@ object CircuitRepository {
             "A desert oasis. The Bahrain International Circuit is famous for its night racing and heavy braking zones that encourage overtaking.",
             R.drawable.sakhir,
             listOf(
-                CircuitHotspot("Turn 1", "Michael Schumacher turn - prime overtaking.", 0.52f, 0.08f),
-                CircuitHotspot("Turn 10", "Technical downhill left-hander.", 0.35f, 0.55f)
+                CircuitHotspot("Turn 1", "Michael Schumacher turn - prime overtaking.", 0.12f, 0.75f),
+                CircuitHotspot("Turn 10", "Technical downhill left-hander.", 0.32f, 0.55f)
             )
         ),
         "jeddah" to CircuitDetail(
@@ -61,49 +61,49 @@ object CircuitRepository {
             57,
             "A temporary circuit around the Hard Rock Stadium. It blends a street-circuit feel with a permanent track's high-speed sweeps.",
             R.drawable.miami,
-            listOf(CircuitHotspot("Turn 11-16", "The tight and technical 'Misty' section.", 0.42f, 0.72f))
+            listOf(CircuitHotspot("Turn 11-16", "The tight and technical 'Misty' section.", 0.83f, 0.52f))
         ),
         "villeneuve" to CircuitDetail(
             70,
             "Held on a man-made island, this track is famous for the 'Wall of Champions' and its close proximity to the St. Lawrence River.",
             R.drawable.montreal,
-            listOf(CircuitHotspot("Wall of Champions", "The famous final chicane.", 0.9f, 0.15f))
+            listOf(CircuitHotspot("Wall of Champions", "The famous final chicane.", 0.6f, 0.4f))
         ),
         "monaco" to CircuitDetail(
             laps = 78,
             description = "The crown jewel of F1. A tight, narrow street circuit through Monte Carlo where precision is everything and overtaking is nearly impossible.",
             imageRes = R.drawable.monaco,
             hotspots = listOf(
-                CircuitHotspot("Sainte-Dévote", "Famous Turn 1 bottleneck.", 0.3f, 0.8f),
-                CircuitHotspot("Grand Hotel Hairpin", "Slowest turn in F1.", 0.6f, 0.3f)
+                CircuitHotspot("Sainte-Dévote", "Famous Turn 1 bottleneck.", 0.3f, 0.27f),
+                CircuitHotspot("Grand Hotel Hairpin", "Slowest turn in F1.", 0.85f, 0.44f)
             )
         ),
         "catalunya" to CircuitDetail(
             66,
             "A classic testing venue. Its mix of high and low-speed corners makes it the perfect benchmark for a car's aerodynamic efficiency.",
             R.drawable.catalunya,
-            listOf(CircuitHotspot("Turn 3", "Long, high-G right-hander.", 0.8f, 0.4f))
+            listOf(CircuitHotspot("Turn 3", "Long, high-G right-hander.", 0.1f, 0.4f))
         ),
         "red_bull_ring" to CircuitDetail(
             71,
             "Short and punchy. Set in the Styrian mountains, it features three long straights and intense elevation changes.",
             R.drawable.red_bull_ring,
-            listOf(CircuitHotspot("Turn 1", "Steep uphill braking zone.", 0.5f, 0.05f))
+            listOf(CircuitHotspot("Turn 1", "Steep uphill braking zone.", 0.52f, 0.65f))
         ),
         "silverstone" to CircuitDetail(
             52,
             "The home of British motor racing. A former airfield known for legendary corner complexes like Maggotts, Becketts, and Chapel.",
             R.drawable.silverstone,
             listOf(
-                CircuitHotspot("Maggots & Becketts", "The fastest sequence on the calendar.", 0.45f, 0.25f),
-                CircuitHotspot("Copse", "Flat-out at nearly 300km/h.", 0.62f, 0.12f)
+                CircuitHotspot("Maggots & Becketts", "The fastest sequence on the calendar.", 0.48f, 0.78f),
+                CircuitHotspot("Copse", "Flat-out at nearly 300km/h.", 0.86f, 0.73f)
             )
         ),
         "spa" to CircuitDetail(
             44,
             "The longest track on the calendar. Features the iconic Eau Rouge/Raidillon climb and unpredictable Ardennes forest weather.",
             R.drawable.spa,
-            listOf(CircuitHotspot("Eau Rouge", "The legendary uphill 'flick'.", 0.38f, 0.85f))
+            listOf(CircuitHotspot("Eau Rouge", "The legendary uphill 'flick'.", 0.35f, 0.43f))
         ),
         "hungaroring" to CircuitDetail(
             70,
