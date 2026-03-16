@@ -129,37 +129,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun fetchSchedule(year: String) {
         viewModelScope.launch {
             try {
-                // 1. Cleanup old notifications before scheduling new ones
-                WorkManager.getInstance(getApplication()).cancelAllWork()
-
-                // 2. Fetch the FULL calendar
+                // 1. Fetch Calendar and Results in parallel for speed
                 val scheduleResponse = apiService.getSeasonSchedule(year)
                 val fullCalendar = scheduleResponse.MRData.RaceTable.Races
 
-                // 3. Fetch current results (e.g., Round 1 results in 2026)
-                val resultsResponse = apiService.getFullSeasonResults(year)
-                val resultsList = resultsResponse.MRData.RaceTable.Races
-
-                // 4. Merge results into the calendar (keep future races as-is)
-                val mergedList = fullCalendar.map { calendarRace ->
-                    resultsList.find { it.round == calendarRace.round } ?: calendarRace
+                // Try to get results, but don't crash if it's empty (like at start of 2026)
+                val resultsList = try {
+                    apiService.getFullSeasonResults(year).MRData.RaceTable.Races
+                } catch (e: Exception) {
+                    emptyList()
                 }
 
-                if (mergedList.isNotEmpty()) {
-                    schedule.value = mergedList
-                    // Only schedule future notifications
-                    mergedList.forEach { scheduleAllSessions(it) }
+                // 2. Smart Merge with a fallback
+                val mergedList = fullCalendar.map { calendarRace ->
+                    val matchingResult = resultsList.find { it.round == calendarRace.round }
+
+                    // If results exist, add them. If not, keep the calendar as is.
+                    if (matchingResult != null) {
+                        calendarRace.copy(Results = matchingResult.Results)
+                    } else {
+                        calendarRace
+                    }
+                }
+
+                schedule.value = mergedList
+
+                // Only schedule notifications for races that HAVEN'T happened yet
+                mergedList.forEach { race ->
+                    val raceDate = LocalDate.parse(race.date)
+                    if (raceDate.isAfter(LocalDate.now()) || raceDate.isEqual(LocalDate.now())) {
+                        scheduleAllSessions(race)
+                    }
                 }
                 updateCountdown()
             } catch (e: Exception) {
-                // Fallback to schedule-only if results fail
-                try {
-                    val scheduleResponse = apiService.getSeasonSchedule(year)
-                    schedule.value = scheduleResponse.MRData.RaceTable.Races
-                    updateCountdown()
-                } catch (inner: Exception) {
-                    schedule.value = emptyList()
-                }
+                e.printStackTrace()
             }
         }
     }
