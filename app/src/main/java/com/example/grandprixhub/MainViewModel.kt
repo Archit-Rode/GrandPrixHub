@@ -47,6 +47,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val currentWeather = mutableStateOf<APIWeather?>(null)
 
+    val selectedSessionResults = mutableStateOf<List<Any>>(emptyList())
+    val selectedSessionType = mutableStateOf("") // e.g., "QUALIFYING"
+    val isShowingResults = mutableStateOf(false)
+
     // 2. Retrofit Setup
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://api.jolpi.ca/ergast/f1/")
@@ -302,5 +306,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "Race Craft" to craftScore,
             "Peak Performance" to peakScore
         )
+    }
+    fun fetchSessionResults(year: String, round: String, type: String) {
+        viewModelScope.launch {
+            try {
+                when (type) {
+                    "qualifying" -> {
+                        val response = apiService.getQualifyingResults(year, round)
+                        val race = response.MRData.RaceTable.Races.firstOrNull()
+                        selectedSessionResults.value = race?.QualifyingResults ?: emptyList()
+                        selectedSessionType.value = "QUALIFYING"
+                    }
+                    "sprint" -> {
+                        val response = apiService.getSprintResults(year, round)
+                        val race = response.MRData.RaceTable.Races.firstOrNull()
+                        selectedSessionResults.value = race?.SprintResults ?: emptyList()
+                        selectedSessionType.value = "SPRINT RACE"
+                    }
+                    "results" -> {
+                        val response = apiService.getRaceResults(year, round)
+                        val race = response.MRData.RaceTable.Races.firstOrNull()
+                        selectedSessionResults.value = race?.Results ?: emptyList()
+                        selectedSessionType.value = "GRAND PRIX"
+                    }
+                }
+                isShowingResults.value = selectedSessionResults.value.isNotEmpty()
+            } catch (e: Exception) {
+                selectedSessionResults.value = emptyList()
+                isShowingResults.value = false
+            }
+        }
     }
 }

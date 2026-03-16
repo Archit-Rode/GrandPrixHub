@@ -389,10 +389,10 @@ fun RaceCard(race: APIRace, onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RaceDetailScreen(viewModel: MainViewModel) {
     val race = viewModel.selectedRace.value ?: return
-    // This fetches the specific description, laps, and HOTSPOTS for this track
     val circuitData = CircuitRepository.getDetails(race.Circuit.circuitId)
     val weather = viewModel.currentWeather.value
 
@@ -400,68 +400,121 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
         viewModel.fetchWeather()
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF15151E))) {
-        TextButton(onClick = { viewModel.clearSelectedRace() }, modifier = Modifier.padding(8.dp)) {
-            Text("< BACK TO CALENDAR", color = Color(0xFFE10600), fontWeight = FontWeight.Bold)
+    // --- WRAP EVERYTHING IN A BOX TO ALLOW OVERLAYS ---
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // 1. MAIN CONTENT
+        Column(modifier = Modifier.fillMaxSize().background(Color(0xFF15151E))) {
+            TextButton(onClick = { viewModel.clearSelectedRace() }, modifier = Modifier.padding(8.dp)) {
+                Text("< BACK TO CALENDAR", color = Color(0xFFE10600), fontWeight = FontWeight.Bold)
+            }
+
+            LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
+                item {
+                    Text(text = race.raceName.uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Black)
+                    Text(text = race.Circuit.circuitName, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+
+                    WeatherWidget(weather)
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    if (circuitData.imageRes != null) {
+                        CircuitMapWithHotspots(
+                            circuitImage = circuitData.imageRes,
+                            hotspots = circuitData.hotspots
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        DetailInfo("LAPS", "${circuitData.laps}")
+                        DetailInfo("ROUND", race.round)
+                        DetailInfo("DATE", formatRaceWeekend(race.date))
+                    }
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    Text("HISTORY", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
+                    Text(text = circuitData.description, color = Color.LightGray, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 8.dp, bottom = 32.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("WEEKEND SCHEDULE", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
+                        TextButton(onClick = { viewModel.toggleTimeMode() }) {
+                            Text(text = if (viewModel.timeMode == TimeMode.MY_TIME) "SHOW TRACK TIME" else "SHOW MY TIME", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Column(modifier = Modifier.padding(start = 8.dp)) {
+                        val mode = viewModel.timeMode
+                        val country = race.Circuit.Location.country
+                        val season = viewModel.selectedYear.value
+
+                        val onSessionClick: (String) -> Unit = { sessionType ->
+                            if (!sessionType.contains("Practice")) {
+                                val type = when {
+                                    sessionType.contains("Qualifying") -> "qualifying"
+                                    sessionType.contains("Sprint Race") -> "sprint"
+                                    else -> "results"
+                                }
+                                viewModel.fetchSessionResults(season, race.round, type)
+                            }
+                        }
+
+                        // Practice 1
+                        race.FirstPractice?.let {
+                            Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Practice 1") }) {
+                                TimelineItem("Practice 1", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time))
+                            }
+                        }
+
+                        if (race.Sprint != null) {
+                            race.SprintShootout?.let {
+                                Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Sprint Qualifying") }) {
+                                    TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time))
+                                }
+                            }
+                            race.Sprint?.let {
+                                Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Sprint Race") }) {
+                                    TimelineItem("Sprint Race", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time))
+                                }
+                            }
+                        } else {
+                            race.SecondPractice?.let {
+                                Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Practice 2") }) {
+                                    TimelineItem("Practice 2", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time))
+                                }
+                            }
+                            race.ThirdPractice?.let {
+                                Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Practice 3") }) {
+                                    TimelineItem("Practice 3", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time))
+                                }
+                            }
+                        }
+
+                        race.Qualifying?.let {
+                            Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Qualifying") }) {
+                                TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time))
+                            }
+                        }
+
+                        Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Grand Prix") }) {
+                            TimelineItem("Grand Prix", formatSessionDate(race.date), formatToDisplayTime(race.date, race.time ?: "15:00:00Z", mode, country), true, getSessionStatus(race.date, race.time ?: "15:00:00Z"))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(40.dp))
+                }
+            }
         }
 
-        LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
-            item {
-                Text(text = race.raceName.uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Black)
-                Text(text = race.Circuit.circuitName, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
-
-                WeatherWidget(weather)
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // --- DYNAMIC HOTSPOTS ---
-                if (circuitData.imageRes != null) {
-                    CircuitMapWithHotspots(
-                        circuitImage = circuitData.imageRes,
-                        // We now use circuitData.hotspots so they change per track!
-                        hotspots = circuitData.hotspots
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    DetailInfo("LAPS", "${circuitData.laps}")
-                    DetailInfo("ROUND", race.round)
-                    DetailInfo("DATE", formatRaceWeekend(race.date))
-                }
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Text("HISTORY", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
-                Text(text = circuitData.description, color = Color.LightGray, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 8.dp, bottom = 32.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("WEEKEND SCHEDULE", color = Color(0xFFE10600), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
-                    TextButton(onClick = { viewModel.toggleTimeMode() }) {
-                        Text(text = if (viewModel.timeMode == TimeMode.MY_TIME) "SHOW TRACK TIME" else "SHOW MY TIME", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Column(modifier = Modifier.padding(start = 8.dp)) {
-                    val mode = viewModel.timeMode
-                    val country = race.Circuit.Location.country
-
-                    race.FirstPractice?.let { TimelineItem("Practice 1", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
-
-                    if (race.Sprint != null) {
-                        race.SprintShootout?.let { TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
-                        race.Sprint?.let { TimelineItem("Sprint Race", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
-                        race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
-                    } else {
-                        race.SecondPractice?.let { TimelineItem("Practice 2", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
-                        race.ThirdPractice?.let { TimelineItem("Practice 3", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
-                        race.Qualifying?.let { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) }
-                    }
-
-                    TimelineItem("Grand Prix", formatSessionDate(race.date), formatToDisplayTime(race.date, race.time ?: "15:00:00Z", mode, country), true, getSessionStatus(race.date, race.time ?: "15:00:00Z"))
-                }
-                Spacer(modifier = Modifier.height(40.dp))
+        // --- 2. THE BOTTOM SHEET (Moved to top level within the Box) ---
+        if (viewModel.isShowingResults.value) {
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.isShowingResults.value = false },
+                containerColor = Color(0xFF1C1C1C),
+                dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }
+            ) {
+                SessionResultsList(viewModel)
             }
         }
     }
@@ -986,6 +1039,65 @@ fun DriverInsightCard(
                 lineHeight = 20.sp
             )
         }
+    }
+}
+@Composable
+fun SessionResultsList(viewModel: MainViewModel) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Text(
+            text = "${viewModel.selectedSessionType.value} STANDINGS",
+            style = MaterialTheme.typography.titleLarge,
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            fontStyle = FontStyle.Italic
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LazyColumn(modifier = Modifier.fillMaxHeight(0.8f)) {
+            items(viewModel.selectedSessionResults.value) { result ->
+                SessionResultRow(result)
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+fun SessionResultRow(result: Any) {
+    // Note: You need to ensure these models are imported correctly from F1ApiService
+    val name: String
+    val pos: String
+    val teamColor: Color
+    val detail: String
+
+    when (result) {
+        is RaceResult -> {
+            name = "${result.Driver.givenName} ${result.Driver.familyName.uppercase()}"
+            pos = result.position
+            teamColor = getTeamColor(result.Constructor.constructorId)
+            detail = result.status
+        }
+        is QualifyingResult -> {
+            name = "${result.Driver.givenName} ${result.Driver.familyName.uppercase()}"
+            pos = result.position
+            teamColor = getTeamColor(result.Constructor.constructorId)
+            detail = result.Q3 ?: result.Q2 ?: result.Q1 ?: "--"
+        }
+        else -> return
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = pos, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp))
+        Box(modifier = Modifier.width(4.dp).height(24.dp).background(teamColor))
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = name, color = Color.White, fontWeight = FontWeight.Bold)
+        }
+        Text(text = detail, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

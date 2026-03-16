@@ -25,6 +25,25 @@ interface F1ApiService {
     suspend fun getSessionWeather(
         @Url url: String // This will take the full OpenF1 link
     ): List<APIWeather>
+    @GET("{year}/{round}/results.json")
+    suspend fun getRaceResults(
+        @Path("year") year: String,
+        @Path("round") round: String
+    ): ScheduleResponse
+
+    // Fetch Qualifying standings (Q1, Q2, Q3 times)
+    @GET("{year}/{round}/qualifying.json")
+    suspend fun getQualifyingResults(
+        @Path("year") year: String,
+        @Path("round") round: String
+    ): QualifyingResponse
+
+    // Fetch Sprint results
+    @GET("{year}/{round}/sprint.json")
+    suspend fun getSprintResults(
+        @Path("year") year: String,
+        @Path("round") round: String
+    ): SprintResponse
 }
 
 // --- Schedule Data Classes ---
@@ -114,4 +133,32 @@ data class APIWeather(
     val humidity: Double,
     val rainfall: Int, // 0 for dry, 1 for wet
     val wind_speed: Double
+)
+
+// Qualifying-specific response
+data class QualifyingResponse(val MRData: MRDataQualifying)
+data class MRDataQualifying(val RaceTable: QualifyingRaceTable)
+data class QualifyingRaceTable(val Races: List<QualifyingRace>)
+data class QualifyingRace(
+    val raceName: String,
+    val QualifyingResults: List<QualifyingResult>
+)
+
+data class QualifyingResult(
+    val position: String,
+    val number: String,
+    val Driver: Driver,
+    val Constructor: Constructor,
+    val Q1: String?,
+    val Q2: String?,
+    val Q3: String?
+)
+
+// Sprint-specific response
+data class SprintResponse(val MRData: MRDataSprint)
+data class MRDataSprint(val RaceTable: SprintRaceTable)
+data class SprintRaceTable(val Races: List<SprintRace>)
+data class SprintRace(
+    val raceName: String,
+    val SprintResults: List<RaceResult> // Sprint uses the same format as RaceResult
 )
