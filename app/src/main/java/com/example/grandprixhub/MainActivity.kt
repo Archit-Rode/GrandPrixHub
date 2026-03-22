@@ -41,6 +41,19 @@ import androidx.compose.foundation.shape.CircleShape
 import java.time.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import android.content.Intent
+import android.net.Uri
 
 enum class TimeMode { MY_TIME, TRACK_TIME }
 enum class SessionStatus { PAST, LIVE, UPCOMING }
@@ -1042,27 +1055,139 @@ fun DriverInsightCard(
     }
 }
 @Composable
-fun SessionResultsList(viewModel: MainViewModel) {
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-        Text(
-            text = "${viewModel.selectedSessionType.value} STANDINGS",
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
-            fontWeight = FontWeight.Black,
-            fontStyle = FontStyle.Italic
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+fun HighlightThumbnailPlayer(videoId: String, thumbnailUrl: String) {
+    val context = LocalContext.current
 
-        LazyColumn(modifier = Modifier.fillMaxHeight(0.8f)) {
-            items(viewModel.selectedSessionResults.value) { result ->
-                SessionResultRow(result)
-                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable {
+                    // This is a "Smart Deep Link"
+                    // It tries to open the YouTube App directly (vnd.youtube)
+                    // If that fails, it falls back to the browser
+                    val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoId"))
+                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId"))
+
+                    try {
+                        context.startActivity(appIntent)
+                    } catch (ex: Exception) {
+                        context.startActivity(webIntent)
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            // 1. The Real Thumbnail from YouTube
+            AsyncImage(
+                model = thumbnailUrl,
+                contentDescription = "F1 Highlights Thumbnail",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+
+            // 2. A semi-transparent play button overlay
+            Surface(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(50),
+                modifier = Modifier.size(64.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_media_play),
+                    contentDescription = "Play Video",
+                    tint = Color.White,
+                    modifier = Modifier.padding(16.dp)
+                )
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "TAP TO WATCH OFFICIAL HIGHLIGHTS",
+            color = Color(0xFFE10600), // F1 Red
+            style = MaterialTheme.typography.labelSmall
+        )
     }
 }
+@Composable
+fun SessionResultsList(viewModel: MainViewModel) {
+    var selectedTab by remember { mutableStateOf("RESULTS") }
+    val race = viewModel.selectedRace.value
+    val session = viewModel.selectedSessionType.value
 
+    // --- NEW: Trigger the API search when user clicks HIGHLIGHTS ---
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == "HIGHLIGHTS" && race != null) {
+            viewModel.fetchLiveHighlight(race.raceName, session)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        // --- 1. TAB HEADER ---
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            listOf("RESULTS", "HIGHLIGHTS").forEach { tab ->
+                val isSelected = selectedTab == tab
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 24.dp).clickable { selectedTab = tab }
+                ) {
+                    Text(
+                        text = tab,
+                        color = if (isSelected) Color(0xFFE10600) else Color.Gray,
+                        fontWeight = FontWeight.Black,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    if (isSelected) {
+                        Box(modifier = Modifier.padding(top = 4.dp).width(20.dp).height(2.dp).background(Color(0xFFE10600)))
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // --- 2. CONDITIONAL CONTENT ---
+        if (selectedTab == "RESULTS") {
+            val results = viewModel.selectedSessionResults.value
+            if (results.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    Text("No results data available yet.", color = Color.Gray)
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxHeight(0.8f)) {
+                    items(results) { result ->
+                        SessionResultRow(result)
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                    }
+                }
+            }
+        } else {
+            // --- 3. ACTUAL HIGHLIGHTS PLAYER ---
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (viewModel.selectedVideoId.value.isNotEmpty()) {
+                    // This replaces the placeholder Card
+                    HighlightThumbnailPlayer(videoId = viewModel.selectedVideoId.value,thumbnailUrl = viewModel.selectedThumbnailUrl.value)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "OFFICIAL ${session.uppercase()} HIGHLIGHTS",
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    // Show a spinner while the API works
+                    Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFFE10600))
+                    }
+                }
+                Spacer(modifier = Modifier.height(40.dp))
+            }
+        }
+    }
+}
 @Composable
 fun SessionResultRow(result: Any) {
     // Note: You need to ensure these models are imported correctly from F1ApiService

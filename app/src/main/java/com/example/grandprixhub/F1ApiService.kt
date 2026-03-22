@@ -3,6 +3,7 @@ package com.example.grandprixhub
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Url
+import retrofit2.http.Query
 import com.google.gson.annotations.SerializedName
 interface F1ApiService {
     // EXISTING: Standings
@@ -45,6 +46,34 @@ interface F1ApiService {
         @Path("round") round: String
     ): SprintResponse
 }
+interface YouTubeApiService {
+    @GET("https://www.googleapis.com/youtube/v3/search")
+    suspend fun searchVideos(
+        @Query("part") part: String = "snippet",
+        @Query("q") query: String,
+        @Query("channelId") channelId: String = "UCB_qr75-ydFVKSF9Dmo6izg", // Official F1 Channel ID
+        @Query("maxResults") maxResults: Int = 1,
+        @Query("order") order: String = "date",
+        @Query("type") type: String = "video",
+        @Query("key") apiKey: String
+    ): YouTubeSearchResponse
+}
+
+// Models for the YouTube Response
+data class YouTubeSearchResponse(val items: List<YouTubeVideoItem>)
+data class YouTubeVideoItem(val id: YouTubeVideoId,val snippet: YouTubeSnippet)
+data class YouTubeSnippet(
+    val title: String,
+    val thumbnails: YouTubeThumbnails
+)
+data class YouTubeThumbnails(
+    val high: YouTubeThumbnailDetails
+)
+
+data class YouTubeThumbnailDetails(
+    val url: String
+)
+data class YouTubeVideoId(val videoId: String)
 
 // --- Schedule Data Classes ---
 data class ScheduleResponse(val MRData: MRDataSchedule)

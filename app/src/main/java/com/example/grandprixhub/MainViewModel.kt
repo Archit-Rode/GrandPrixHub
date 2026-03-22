@@ -51,6 +51,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val selectedSessionType = mutableStateOf("") // e.g., "QUALIFYING"
     val isShowingResults = mutableStateOf(false)
 
+    data class YouTubeVideoItem(val id: YouTubeVideoId, val snippet: YouTubeSnippet)
+    data class YouTubeSnippet(val thumbnails: YouTubeThumbnails)
+    data class YouTubeThumbnails(val high: YouTubeThumbnailDetails)
+    data class YouTubeThumbnailDetails(val url: String)
+
+    // 2. In MainViewModel, add a state for the thumbnail
+    val selectedThumbnailUrl = mutableStateOf("")
+
+    private val YOUTUBE_API_KEY = "AIzaSyB1QAChJVjcPadjSKVjIp-UprKsF2Y_JJQ"
+    private val youtubeApi = Retrofit.Builder()
+        .baseUrl("https://www.googleapis.com/")
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(YouTubeApiService::class.java)
+
+    val selectedVideoId = mutableStateOf("")
+
+    fun fetchLiveHighlight(raceName: String, sessionName: String) {
+        viewModelScope.launch {
+            try {
+                // 1. YOUR ORIGINAL LOGIC: Map session to F1's exact keywords
+                val highlightKeyword = when {
+                    sessionName.contains("Qualifying", ignoreCase = true) -> "Qualifying Highlights"
+                    sessionName.contains("Sprint Race", ignoreCase = true) -> "Sprint Highlights"
+                    sessionName.contains("Practice 1", ignoreCase = true) -> "FP1 Highlights"
+                    sessionName.contains("Practice 2", ignoreCase = true) -> "FP2 Highlights"
+                    sessionName.contains("Practice 3", ignoreCase = true) -> "FP3 Highlights"
+                    else -> "Race Highlights"
+                }
+
+                // 2. YOUR ORIGINAL LOGIC: Build the query with the Pipe symbol (|)
+                val query = "$highlightKeyword | ${selectedYear.value} $raceName"
+
+                val response = youtubeApi.searchVideos(
+                    query = query,
+                    apiKey = YOUTUBE_API_KEY,
+                    channelId = "UCB_qr75-ydFVKSF9Dmo6izg",
+                    order = "relevance"
+                )
+
+                // 3. EXTRACT BOTH: Video ID for the link and Thumbnail for the UI
+                val item = response.items.firstOrNull()
+
+                selectedVideoId.value = item?.id?.videoId ?: ""
+                // New line: This sends the image URL to your HighlightThumbnailPlayer
+                selectedThumbnailUrl.value = item?.snippet?.thumbnails?.high?.url ?: ""
+
+            } catch (e: Exception) {
+                selectedVideoId.value = ""
+                selectedThumbnailUrl.value = ""
+            }
+        }
+    }
+
     // 2. Retrofit Setup
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://api.jolpi.ca/ergast/f1/")
