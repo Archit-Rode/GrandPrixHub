@@ -21,6 +21,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import androidx.work.workDataOf
+import com.example.grandprixhub.BuildConfig
 
 // Changed to AndroidViewModel to access application context for WorkManager
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -59,7 +60,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // 2. In MainViewModel, add a state for the thumbnail
     val selectedThumbnailUrl = mutableStateOf("")
 
-    private val YOUTUBE_API_KEY = "AIzaSyB1QAChJVjcPadjSKVjIp-UprKsF2Y_JJQ"
+    private val YOUTUBE_API_KEY =BuildConfig.YOUTUBE_API_KEY
     private val youtubeApi = Retrofit.Builder()
         .baseUrl("https://www.googleapis.com/")
         .addConverterFactory(GsonConverterFactory.create())
