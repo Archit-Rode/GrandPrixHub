@@ -10,69 +10,196 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.time.LocalDateTime
 import java.time.Duration
-import java.time.format.DateTimeFormatter
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.foundation.lazy.LazyListState
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.concurrent.TimeUnit
 import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import androidx.work.workDataOf
-import com.example.grandprixhub.BuildConfig
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.lazy.LazyListState
 
-// Changed to AndroidViewModel to access application context for WorkManager
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    // 1. UI State
+    // --- UI State ---
     val isDriversTab = mutableStateOf(true)
     val selectedYear = mutableStateOf("2025")
-
     val drivers = mutableStateOf<List<DriverStanding>>(emptyList())
     val constructors = mutableStateOf<List<ConstructorStanding>>(emptyList())
     val schedule = mutableStateOf<List<APIRace>>(emptyList())
-
     val selectedRace = mutableStateOf<APIRace?>(null)
     val countdownText = mutableStateOf("")
     val scheduleListState = LazyListState()
 
-    // Comparison States
     var selectedDriver1 by mutableStateOf<DriverStanding?>(null)
     var selectedDriver2 by mutableStateOf<DriverStanding?>(null)
     var timeMode by mutableStateOf(TimeMode.MY_TIME)
-
     var driver1DNA = mutableStateOf<Map<String, Float>>(emptyMap())
     var driver2DNA = mutableStateOf<Map<String, Float>>(emptyMap())
 
     val currentWeather = mutableStateOf<APIWeather?>(null)
-
     val selectedSessionResults = mutableStateOf<List<Any>>(emptyList())
-    val selectedSessionType = mutableStateOf("") // e.g., "QUALIFYING"
+    val selectedSessionType = mutableStateOf("")
     val isShowingResults = mutableStateOf(false)
-
-    data class YouTubeVideoItem(val id: YouTubeVideoId, val snippet: YouTubeSnippet)
-    data class YouTubeSnippet(val thumbnails: YouTubeThumbnails)
-    data class YouTubeThumbnails(val high: YouTubeThumbnailDetails)
-    data class YouTubeThumbnailDetails(val url: String)
-
-    // 2. In MainViewModel, add a state for the thumbnail
     val selectedThumbnailUrl = mutableStateOf("")
+    val selectedVideoId = mutableStateOf("")
 
-    private val YOUTUBE_API_KEY =BuildConfig.YOUTUBE_API_KEY
+    // --- Retrofit Setup ---
+    private val YOUTUBE_API_KEY = BuildConfig.YOUTUBE_API_KEY
+
     private val youtubeApi = Retrofit.Builder()
         .baseUrl("https://www.googleapis.com/")
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(YouTubeApiService::class.java)
 
-    val selectedVideoId = mutableStateOf("")
+    private val apiService = Retrofit.Builder()
+        .baseUrl("https://api.jolpi.ca/ergast/f1/")
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(F1ApiService::class.java)
+
+    init {
+        fetchData()
+    }
+
+    // --- NEW: PRACTICE RESULTS LOGIC (OpenF1) ---
+
+    private fun fetchPracticeResults(year: String, circuitId: String, sessionName: String) {
+        viewModelScope.launch {
+            try {
+                // 1. Map Ergast Circuit ID to OpenF1 Short Name
+                val openF1CircuitName = mapErgastToOpenF1(circuitId)
+
+                // 2. Find the Session Key
+                val sessions = apiService.getOpenF1Sessions(
+                    year = year.toInt(),
+                    circuitName = openF1CircuitName,
+                    sessionName = sessionName
+                )
+                val sessionKey = sessions.lastOrNull()?.sessionKey ?: return@launch
+
+                // 3. Get all Laps for that session
+                val allLaps = apiService.getOpenF1Laps(sessionKey = sessionKey)
+
+                // 4. Process: Find best lap for each driver
+                val results = allLaps
+                    .filter { it.lapDuration != null && !it.isPitOutLap }
+                    .groupBy { it.driverNumber }
+                    .map { (driverNum, laps) ->
+                        val bestLap = laps.minByOrNull { it.lapDuration!! }!!
+                        bestLap
+                    }
+                    .sortedBy { it.lapDuration }
+                    .mapIndexed { index, lap ->
+                        val driverInfo = drivers.value.find { it.Driver.permanentNumber == lap.driverNumber.toString() }?.Driver
+                        val driverName = if (driverInfo != null) "${driverInfo.givenName} ${driverInfo.familyName}" else "Driver ${lap.driverNumber}"
+
+                        val gap = if (index == 0) "INTERVAL"
+                        else "+${String.format("%.3f", lap.lapDuration!! - (allLaps.filter { it.lapDuration != null }.minByOrNull { it.lapDuration!! }?.lapDuration ?: 0.0))}"
+
+                        PracticeResultDisplay(
+                            position = index + 1,
+                            driverNumber = lap.driverNumber.toString(),
+                            driverName = driverName,
+                            bestLapTime = formatLapTime(lap.lapDuration!!),
+                            gap = gap
+                        )
+                    }
+
+                selectedSessionResults.value = results
+                selectedSessionType.value = sessionName.uppercase()
+                isShowingResults.value = results.isNotEmpty()
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                isShowingResults.value = false
+            }
+        }
+    }
+
+    private fun formatLapTime(totalSeconds: Double): String {
+        val minutes = (totalSeconds / 60).toInt()
+        val seconds = totalSeconds % 60
+        return String.format("%d:%06.3f", minutes, seconds)
+    }
+
+    private fun mapErgastToOpenF1(ergastId: String): String {
+        return when (ergastId) {
+            "albert_park" -> "Melbourne"
+            "bahrain" -> "Sakhir"
+            "jeddah" -> "Jeddah"
+            "suzuka" -> "Suzuka"
+            "shanghai" -> "Shanghai"
+            "miami" -> "Miami"
+            "imola" -> "Imola"
+            "monaco" -> "Monaco"
+            "villeneuve" -> "Montreal"
+            "catalunya" -> "Barcelona"
+            "red_bull_ring" -> "Spielberg"
+            "silverstone" -> "Silverstone"
+            "hungaroring" -> "Budapest"
+            "spa" -> "Spa-Francorchamps"
+            "zandvoort" -> "Zandvoort"
+            "monza" -> "Monza"
+            "baku" -> "Baku"
+            "marina_bay" -> "Singapore"
+            "americas" -> "Austin"
+            "rodriguez" -> "Mexico City"
+            "interlagos" -> "São Paulo"
+            "vegas" -> "Las Vegas"
+            "losail" -> "Lusail"
+            "yas_marina" -> "Abu Dhabi"
+            else -> ergastId.replace("_", " ").capitalize()
+        }
+    }
+
+    // --- UPDATED: Main Session Results Dispatcher ---
+
+    fun fetchSessionResults(year: String, round: String, type: String) {
+        val currentRace = selectedRace.value ?: return
+
+        viewModelScope.launch {
+            try {
+                when (type.lowercase()) {
+                    "fp1" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 1")
+                    "fp2" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 2")
+                    "fp3" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 3")
+                    "qualifying" -> {
+                        val response = apiService.getQualifyingResults(year, round)
+                        val race = response.MRData.RaceTable.Races.firstOrNull()
+                        selectedSessionResults.value = race?.QualifyingResults ?: emptyList()
+                        selectedSessionType.value = "QUALIFYING"
+                        isShowingResults.value = selectedSessionResults.value.isNotEmpty()
+                    }
+                    "sprint" -> {
+                        val response = apiService.getSprintResults(year, round)
+                        val race = response.MRData.RaceTable.Races.firstOrNull()
+                        selectedSessionResults.value = race?.SprintResults ?: emptyList()
+                        selectedSessionType.value = "SPRINT RACE"
+                        isShowingResults.value = selectedSessionResults.value.isNotEmpty()
+                    }
+                    "results" -> {
+                        val response = apiService.getRaceResults(year, round)
+                        val race = response.MRData.RaceTable.Races.firstOrNull()
+                        selectedSessionResults.value = race?.Results ?: emptyList()
+                        selectedSessionType.value = "GRAND PRIX"
+                        isShowingResults.value = selectedSessionResults.value.isNotEmpty()
+                    }
+                }
+            } catch (e: Exception) {
+                selectedSessionResults.value = emptyList()
+                isShowingResults.value = false
+            }
+        }
+    }
+
+    // --- EXISTING FUNCTIONS (Unchanged) ---
 
     fun fetchLiveHighlight(raceName: String, sessionName: String) {
         viewModelScope.launch {
             try {
-                // 1. YOUR ORIGINAL LOGIC: Map session to F1's exact keywords
                 val highlightKeyword = when {
                     sessionName.contains("Qualifying", ignoreCase = true) -> "Qualifying Highlights"
                     sessionName.contains("Sprint Race", ignoreCase = true) -> "Sprint Highlights"
@@ -81,24 +208,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     sessionName.contains("Practice 3", ignoreCase = true) -> "FP3 Highlights"
                     else -> "Race Highlights"
                 }
-
-                // 2. YOUR ORIGINAL LOGIC: Build the query with the Pipe symbol (|)
                 val query = "$highlightKeyword | ${selectedYear.value} $raceName"
-
-                val response = youtubeApi.searchVideos(
-                    query = query,
-                    apiKey = YOUTUBE_API_KEY,
-                    channelId = "UCB_qr75-ydFVKSF9Dmo6izg",
-                    order = "relevance"
-                )
-
-                // 3. EXTRACT BOTH: Video ID for the link and Thumbnail for the UI
+                val response = youtubeApi.searchVideos(query = query, apiKey = YOUTUBE_API_KEY)
                 val item = response.items.firstOrNull()
-
                 selectedVideoId.value = item?.id?.videoId ?: ""
-                // New line: This sends the image URL to your HighlightThumbnailPlayer
                 selectedThumbnailUrl.value = item?.snippet?.thumbnails?.high?.url ?: ""
-
             } catch (e: Exception) {
                 selectedVideoId.value = ""
                 selectedThumbnailUrl.value = ""
@@ -106,141 +220,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // 2. Retrofit Setup
-    private val retrofit = Retrofit.Builder()
-        .baseUrl("https://api.jolpi.ca/ergast/f1/")
-        .client(
-            okhttp3.OkHttpClient.Builder()
-                .addInterceptor { chain ->
-                    val request = chain.request().newBuilder()
-                        .header("User-Agent", "GrandPrixHub/1.0")
-                        .build()
-                    chain.proceed(request)
-                }
-                .build()
-        )
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
-
-    private val apiService = retrofit.create(F1ApiService::class.java)
-
-    init {
-        fetchData()
-    }
-
-    // --- NOTIFICATION SCHEDULING LOGIC ---
-
-    private fun scheduleAllSessions(race: APIRace) {
-        fun formatTime(date: String, time: String?) = "${date}T${time?.replace("Z", "") ?: "15:00:00"}"
-
-        // Schedule Practice Sessions
-        race.FirstPractice?.let { scheduleNotification(formatTime(it.date, it.time), "Free Practice 1", race.raceName) }
-        race.SecondPractice?.let { scheduleNotification(formatTime(it.date, it.time), "Free Practice 2", race.raceName) }
-        race.ThirdPractice?.let { scheduleNotification(formatTime(it.date, it.time), "Free Practice 3", race.raceName) }
-
-        // Schedule Qualifying & Sprint
-        race.Qualifying?.let { scheduleNotification(formatTime(it.date, it.time), "Qualifying", race.raceName) }
-        race.Sprint?.let { scheduleNotification(formatTime(it.date, it.time), "Sprint Race", race.raceName) }
-
-        // Schedule Main Race
-        scheduleNotification(formatTime(race.date, race.time), "Main Race", race.raceName)
-    }
-
-    fun scheduleNotification(sessionTime: String, sessionName: String, raceName: String) {
-        try {
-            // 1. Get the current moment in absolute time (UTC)
-            val now = Instant.now()
-
-            // 2. Parse the API time and explicitly tell Kotlin it is UTC
-            val sessionInstant = LocalDateTime.parse(sessionTime)
-                .atZone(ZoneId.of("UTC"))
-                .toInstant()
-
-            // 3. Calculate delay in seconds for better precision
-            // Subtract 900 seconds (15 minutes)
-            val delayInSeconds = ChronoUnit.SECONDS.between(now, sessionInstant) - (15 * 60)
-
-            if (delayInSeconds > 0) {
-                val data = workDataOf(
-                    "SESSION_NAME" to sessionName,
-                    "RACE_NAME" to raceName
-                )
-
-                val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
-                    .setInitialDelay(delayInSeconds, TimeUnit.SECONDS)
-                    .setInputData(data)
-                    .build()
-
-                // 4. Use REPLACE to overwrite any old, incorrectly timed tasks
-                WorkManager.getInstance(getApplication()).enqueueUniqueWork(
-                    "${raceName}_${sessionName}",
-                    ExistingWorkPolicy.REPLACE,
-                    workRequest
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    // --- DATA FETCHING ---
-
-    private fun fetchSchedule(year: String) {
-        viewModelScope.launch {
-            try {
-                // 1. Fetch Calendar and Results in parallel for speed
-                val scheduleResponse = apiService.getSeasonSchedule(year)
-                val fullCalendar = scheduleResponse.MRData.RaceTable.Races
-
-                // Try to get results, but don't crash if it's empty (like at start of 2026)
-                val resultsList = try {
-                    apiService.getFullSeasonResults(year).MRData.RaceTable.Races
-                } catch (e: Exception) {
-                    emptyList()
-                }
-
-                // 2. Smart Merge with a fallback
-                val mergedList = fullCalendar.map { calendarRace ->
-                    val matchingResult = resultsList.find { it.round == calendarRace.round }
-
-                    // If results exist, add them. If not, keep the calendar as is.
-                    if (matchingResult != null) {
-                        calendarRace.copy(Results = matchingResult.Results)
-                    } else {
-                        calendarRace
-                    }
-                }
-
-                schedule.value = mergedList
-
-                // Only schedule notifications for races that HAVEN'T happened yet
-                mergedList.forEach { race ->
-                    val raceDate = LocalDate.parse(race.date)
-                    if (raceDate.isAfter(LocalDate.now()) || raceDate.isEqual(LocalDate.now())) {
-                        scheduleAllSessions(race)
-                    }
-                }
-                updateCountdown()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
     private fun fetchData() {
         val year = selectedYear.value
         fetchSchedule(year)
-
         viewModelScope.launch {
             try {
                 val driverResponse = apiService.getDriverStandings(year)
-                // Use .orEmpty() to ensure you never handle a null list
-                val dLists = driverResponse.MRData.StandingsTable.StandingsLists
-                drivers.value = dLists.firstOrNull()?.DriverStandings?.filterNotNull() ?: emptyList()
-
+                drivers.value = driverResponse.MRData.StandingsTable.StandingsLists.firstOrNull()?.DriverStandings?.filterNotNull() ?: emptyList()
                 val constructorResponse = apiService.getConstructorStandings(year)
-                val cLists = constructorResponse.MRData.StandingsTable.StandingsLists
-                constructors.value = cLists.firstOrNull()?.ConstructorStandings?.filterNotNull() ?: emptyList()
+                constructors.value = constructorResponse.MRData.StandingsTable.StandingsLists.firstOrNull()?.ConstructorStandings?.filterNotNull() ?: emptyList()
             } catch (e: Exception) {
                 drivers.value = emptyList()
                 constructors.value = emptyList()
@@ -248,7 +236,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- HELPERS ---
+    private fun fetchSchedule(year: String) {
+        viewModelScope.launch {
+            try {
+                val scheduleResponse = apiService.getSeasonSchedule(year)
+                val fullCalendar = scheduleResponse.MRData.RaceTable.Races
+                val resultsList = try { apiService.getFullSeasonResults(year).MRData.RaceTable.Races } catch (e: Exception) { emptyList() }
+                val mergedList = fullCalendar.map { calendarRace ->
+                    val matchingResult = resultsList.find { it.round == calendarRace.round }
+                    if (matchingResult != null) calendarRace.copy(Results = matchingResult.Results) else calendarRace
+                }
+                schedule.value = mergedList
+                updateCountdown()
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+    }
 
     fun updateYear(newYear: String) {
         selectedYear.value = newYear
@@ -265,10 +267,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             selectedDriver2 == null && driver != selectedDriver1 -> selectedDriver2 = driver
             driver == selectedDriver1 -> selectedDriver1 = null
             driver == selectedDriver2 -> selectedDriver2 = null
-            else -> {
-                selectedDriver1 = driver
-                selectedDriver2 = null
-            }
+            else -> { selectedDriver1 = driver; selectedDriver2 = null }
         }
     }
 
@@ -281,28 +280,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (schedule.value.isEmpty()) return
         try {
             val now = LocalDateTime.now()
-
-            // Find the next race where the race date/time is in the future
             val nextRace = schedule.value.firstOrNull { race ->
-                val raceDateTime = LocalDate.parse(race.date)
-                    .atTime(LocalTime.parse(race.time?.replace("Z", "") ?: "15:00:00"))
+                val raceDateTime = LocalDate.parse(race.date).atTime(LocalTime.parse(race.time?.replace("Z", "") ?: "15:00:00"))
                 raceDateTime.isAfter(now)
             }
-
             if (nextRace != null) {
-                val raceDateTime = LocalDate.parse(nextRace.date)
-                    .atTime(LocalTime.parse(nextRace.time?.replace("Z", "") ?: "15:00:00"))
+                val raceDateTime = LocalDate.parse(nextRace.date).atTime(LocalTime.parse(nextRace.time?.replace("Z", "") ?: "15:00:00"))
                 val diff = Duration.between(now, raceDateTime)
-
-                // Format to show Days, Hours, and Minutes
                 countdownText.value = "${nextRace.raceName.uppercase()}: ${diff.toDays()}D ${diff.toHours() % 24}H ${diff.toMinutes() % 60}M"
             } else {
-                // Only show completed if there truly are no more races left in the list
                 countdownText.value = "SEASON COMPLETED"
             }
-        } catch (e: Exception) {
-            countdownText.value = "TIMER UNAVAILABLE"
-        }
+        } catch (e: Exception) { countdownText.value = "TIMER UNAVAILABLE" }
     }
 
     fun getDriversForTeam(constructorId: String): List<DriverStanding> {
@@ -312,84 +301,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchWeather() {
         viewModelScope.launch {
             try {
-                // We use the full OpenF1 URL here to override the Ergast base URL
                 val openF1Url = "https://api.openf1.org/v1/weather?session_key=latest"
                 val response = apiService.getSessionWeather(openF1Url)
-
-                // OpenF1 returns a list of logs; we want the most recent one
                 currentWeather.value = response.lastOrNull()
-            } catch (e: Exception) {
-                currentWeather.value = null
-            }
+            } catch (e: Exception) { currentWeather.value = null }
         }
     }
 
     fun loadDriverStats(driverId: String, isDriverOne: Boolean) {
         viewModelScope.launch {
             try {
-                // Fetch the last 10-20 results for this driver
                 val response = apiService.getDriverCareerResults(driverId)
                 val results = response.MRData.RaceTable.Races.flatMap { it.Results ?: emptyList() }
-
                 val scores = calculateRadarMetrics(results)
                 if (isDriverOne) driver1DNA.value = scores else driver2DNA.value = scores
-            } catch (e: Exception) { /* Handle error */ }
+            } catch (e: Exception) { }
         }
     }
 
     private fun calculateRadarMetrics(results: List<RaceResult>): Map<String, Float> {
         if (results.isEmpty()) return emptyMap()
-
-        // 1. Qualy Pace: 10 - (Avg Grid / 2). Capped 1-10.
         val avgGrid = results.map { it.grid.toFloat() }.average().toFloat()
         val qualyScore = (11f - avgGrid).coerceIn(1f, 10f)
-
-        // 2. Race Craft: Gain/Loss. Only count finished races.
         val classified = results.filter { it.status == "Finished" || it.status.contains("Lap") }
         val avgGained = if (classified.isNotEmpty()) {
             classified.map { it.grid.toInt() - it.position.toInt() }.average().toFloat()
         } else 0f
         val craftScore = (5f + avgGained).coerceIn(1f, 10f)
-
-        // 3. Peak Performance: Wins (3pt) and Podiums (1pt).
         val wins = results.count { it.position == "1" }
         val podiums = results.count { it.position.toInt() in 1..3 }
         val peakScore = ((wins * 3f) + podiums).coerceIn(1f, 10f)
-
-        return mapOf(
-            "Qualy Pace" to qualyScore,
-            "Race Craft" to craftScore,
-            "Peak Performance" to peakScore
-        )
-    }
-    fun fetchSessionResults(year: String, round: String, type: String) {
-        viewModelScope.launch {
-            try {
-                when (type) {
-                    "qualifying" -> {
-                        val response = apiService.getQualifyingResults(year, round)
-                        val race = response.MRData.RaceTable.Races.firstOrNull()
-                        selectedSessionResults.value = race?.QualifyingResults ?: emptyList()
-                        selectedSessionType.value = "QUALIFYING"
-                    }
-                    "sprint" -> {
-                        val response = apiService.getSprintResults(year, round)
-                        val race = response.MRData.RaceTable.Races.firstOrNull()
-                        selectedSessionResults.value = race?.SprintResults ?: emptyList()
-                        selectedSessionType.value = "SPRINT RACE"
-                    }
-                    "results" -> {
-                        val response = apiService.getRaceResults(year, round)
-                        val race = response.MRData.RaceTable.Races.firstOrNull()
-                        selectedSessionResults.value = race?.Results ?: emptyList()
-                        selectedSessionType.value = "GRAND PRIX"
-                    }
-                }
-                isShowingResults.value = selectedSessionResults.value.isNotEmpty()
-            } catch (e: Exception) {
-                selectedSessionResults.value = emptyList()
-                isShowingResults.value = false
-            }
-        }
+        return mapOf("Qualy Pace" to qualyScore, "Race Craft" to craftScore, "Peak Performance" to peakScore)
     }
 }

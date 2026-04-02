@@ -464,14 +464,15 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                         val season = viewModel.selectedYear.value
 
                         val onSessionClick: (String) -> Unit = { sessionType ->
-                            if (!sessionType.contains("Practice")) {
-                                val type = when {
-                                    sessionType.contains("Qualifying") -> "qualifying"
-                                    sessionType.contains("Sprint Race") -> "sprint"
-                                    else -> "results"
-                                }
-                                viewModel.fetchSessionResults(season, race.round, type)
+                            val type = when {
+                                sessionType.contains("Practice 1", ignoreCase = true) -> "fp1"
+                                sessionType.contains("Practice 2", ignoreCase = true) -> "fp2"
+                                sessionType.contains("Practice 3", ignoreCase = true) -> "fp3"
+                                sessionType.contains("Qualifying", ignoreCase = true) -> "qualifying"
+                                sessionType.contains("Sprint Race", ignoreCase = true) -> "sprint"
+                                else -> "results"
                             }
+                            viewModel.fetchSessionResults(season, race.round, type)
                         }
 
                         // Practice 1
@@ -1190,11 +1191,11 @@ fun SessionResultsList(viewModel: MainViewModel) {
 }
 @Composable
 fun SessionResultRow(result: Any) {
-    // Note: You need to ensure these models are imported correctly from F1ApiService
     val name: String
     val pos: String
     val teamColor: Color
     val detail: String
+    val subDetail: String?
 
     when (result) {
         is RaceResult -> {
@@ -1202,12 +1203,25 @@ fun SessionResultRow(result: Any) {
             pos = result.position
             teamColor = getTeamColor(result.Constructor.constructorId)
             detail = result.status
+            subDetail = null
         }
         is QualifyingResult -> {
             name = "${result.Driver.givenName} ${result.Driver.familyName.uppercase()}"
             pos = result.position
             teamColor = getTeamColor(result.Constructor.constructorId)
             detail = result.Q3 ?: result.Q2 ?: result.Q1 ?: "--"
+            subDetail = null
+        }
+        is PracticeResultDisplay -> {
+            name = result.driverName.uppercase()
+            pos = result.position.toString()
+            // We use the driver number to find the team color from the existing standings
+            val driverStanding = viewModel<MainViewModel>().drivers.value.find {
+                it.Driver.permanentNumber == result.driverNumber
+            }
+            teamColor = getTeamColor(driverStanding?.Constructors?.lastOrNull()?.constructorId)
+            detail = result.bestLapTime
+            subDetail = result.gap
         }
         else -> return
     }
@@ -1220,9 +1234,12 @@ fun SessionResultRow(result: Any) {
         Box(modifier = Modifier.width(4.dp).height(24.dp).background(teamColor))
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = name, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(text = name, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
+            if (subDetail != null) {
+                Text(text = subDetail, color = Color.Gray, style = MaterialTheme.typography.labelSmall)
+            }
         }
-        Text(text = detail, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
+        Text(text = detail, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }
 }
 
