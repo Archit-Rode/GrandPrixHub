@@ -24,7 +24,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- UI State ---
     val isDriversTab = mutableStateOf(true)
-    val selectedYear = mutableStateOf("2025")
+    val selectedYear = mutableStateOf(LocalDate.now().year.toString())
     val drivers = mutableStateOf<List<DriverStanding>>(emptyList())
     val constructors = mutableStateOf<List<ConstructorStanding>>(emptyList())
     val schedule = mutableStateOf<List<APIRace>>(emptyList())
