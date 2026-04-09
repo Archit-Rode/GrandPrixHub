@@ -200,16 +200,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchLiveHighlight(raceName: String, sessionName: String) {
         viewModelScope.launch {
             try {
+                // 1. Normalize to Uppercase so "Practice 1" matches "PRACTICE 1"
+                val session = sessionName.uppercase()
+
                 val highlightKeyword = when {
-                    sessionName.contains("Qualifying", ignoreCase = true) -> "Qualifying Highlights"
-                    sessionName.contains("Sprint Race", ignoreCase = true) -> "Sprint Highlights"
-                    sessionName.contains("Practice 1", ignoreCase = true) -> "FP1 Highlights"
-                    sessionName.contains("Practice 2", ignoreCase = true) -> "FP2 Highlights"
-                    sessionName.contains("Practice 3", ignoreCase = true) -> "FP3 Highlights"
+                    session.contains("QUALIFYING") -> "Qualifying Highlights"
+                    session.contains("SPRINT") -> "Sprint Highlights"
+                    session.contains("PRACTICE 1") || session.contains("FP1") -> "FP1 Highlights"
+                    session.contains("PRACTICE 2") || session.contains("FP2") -> "FP2 Highlights"
+                    session.contains("PRACTICE 3") || session.contains("FP3") -> "FP3 Highlights"
                     else -> "Race Highlights"
                 }
+
+                // 2. Refine the query to be exactly what F1 uses
                 val query = "$highlightKeyword | ${selectedYear.value} $raceName"
-                val response = youtubeApi.searchVideos(query = query, apiKey = YOUTUBE_API_KEY)
+
+                val response = youtubeApi.searchVideos(
+                    query = query,
+                    apiKey = YOUTUBE_API_KEY,
+                    // Explicitly tell YouTube to ONLY look at the official F1 channel
+                    channelId = "UCB_qr75-ydFVKSF9Dmo6izg",
+                    order = "relevance"
+                )
+
                 val item = response.items.firstOrNull()
                 selectedVideoId.value = item?.id?.videoId ?: ""
                 selectedThumbnailUrl.value = item?.snippet?.thumbnails?.high?.url ?: ""
