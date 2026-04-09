@@ -616,6 +616,10 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
     val d1DNA by viewModel.driver1DNA
     val d2DNA by viewModel.driver2DNA
 
+    // These colors are hardcoded to match the lines drawn in your ComparisonRadar
+    val chartColor1 = Color(0xFFE10600) // Red (Driver 1)
+    val chartColor2 = Color(0xFF64C4FF) // Blue (Driver 2)
+
     val scrollState = rememberScrollState()
 
     LaunchedEffect(d1.Driver.driverId, d2.Driver.driverId) {
@@ -642,6 +646,18 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black)
         )
 
+        // --- THE LEGEND ---
+        // This links the name to the specific color shown in the radar chart
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ComparisonLegendItem(d1.Driver.familyName, chartColor1)
+            Text(" VS ", color = Color.Gray, modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelSmall)
+            ComparisonLegendItem(d2.Driver.familyName, chartColor2)
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
         Box(
@@ -656,7 +672,6 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
             )
         }
 
-        // --- ADDED THE INSIGHT CARD HERE ---
         if (d1DNA.isNotEmpty() && d2DNA.isNotEmpty()) {
             DriverInsightCard(
                 d1Name = d1.Driver.familyName,
@@ -679,7 +694,7 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
             ) {
                 DriverImage(d1.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(d1.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
+                Text(d1.Driver.familyName.uppercase(), color = chartColor1, fontWeight = FontWeight.Black)
                 Spacer(modifier = Modifier.height(8.dp))
                 StatBox("POINTS", d1.points ?: "0")
                 StatBox("WINS", d1.wins ?: "0")
@@ -689,7 +704,7 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
             Text(
                 text = "VS",
                 modifier = Modifier.padding(bottom = 60.dp),
-                color = Color(0xFFE10600),
+                color = Color.Gray,
                 fontWeight = FontWeight.Black,
                 style = MaterialTheme.typography.headlineSmall
             )
@@ -701,15 +716,29 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
             ) {
                 DriverImage(d2.Driver.driverId)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(d2.Driver.familyName.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
+                Text(d2.Driver.familyName.uppercase(), color = chartColor2, fontWeight = FontWeight.Black)
                 Spacer(modifier = Modifier.height(8.dp))
                 StatBox("POINTS", d2.points ?: "0")
                 StatBox("WINS", d2.wins ?: "0")
                 StatBox("RANK", if (d2.position != null) "#${d2.position}" else "NR")
             }
         }
-
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+// Helper function with a unique name to avoid "Conflicting Overloads"
+@Composable
+fun ComparisonLegendItem(name: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(10.dp).background(color, CircleShape))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = name.uppercase(),
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 @Composable
