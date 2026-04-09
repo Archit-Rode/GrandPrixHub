@@ -54,6 +54,10 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
 
 enum class TimeMode { MY_TIME, TRACK_TIME }
 enum class SessionStatus { PAST, LIVE, UPCOMING }
@@ -1031,29 +1035,52 @@ fun DriverInsightCard(
     d1Scores: Map<String, Float>,
     d2Scores: Map<String, Float>
 ) {
-    // 1. Logic to find the pillar with the largest difference
+    val d1Archetype = getDriverArchetype(d1Scores)
+    val d2Archetype = getDriverArchetype(d2Scores)
+
     val pillars = listOf("Qualy Pace", "Race Craft", "Peak Performance")
     val biggestGapPillar = pillars.maxByOrNull {
         kotlin.math.abs((d1Scores[it] ?: 0f) - (d2Scores[it] ?: 0f))
     } ?: "Qualy Pace"
 
-    val d1Score = d1Scores[biggestGapPillar] ?: 0f
-    val d2Score = d2Scores[biggestGapPillar] ?: 0f
-    val winner = if (d1Score > d2Score) d1Name else d2Name
+    val d1Val = d1Scores[biggestGapPillar] ?: 0f
+    val d2Val = d2Scores[biggestGapPillar] ?: 0f
+    val leaderName = if (d1Val > d2Val) d1Name else d2Name
+    val trailingName = if (d1Val > d2Val) d2Name else d1Name
 
-    // 2. Human-friendly summary based on the leading pillar
-    val description = when(biggestGapPillar) {
-        "Qualy Pace" -> "is significantly faster over a single lap, making them the favorite for Saturday's Pole Position."
-        "Race Craft" -> "is more aggressive on Sundays, consistently gaining more positions through the field than their rival."
-        "Peak Performance" -> "has a higher 'Clutch' factor, appearing on the podium or top step more frequently when it counts."
-        else -> "shows a different tactical approach to the weekend."
+    val delta = kotlin.math.abs(d1Val - d2Val)
+    val intensity = when {
+        delta > 2.5f -> "dominates"
+        delta > 1.0f -> "outperforms"
+        else -> "marginally leads"
     }
 
-    // 3. The UI Card
+    // --- NEW: ANNOTATED STRING FOR BOLDING ---
+    val annotatedAnalysis = buildAnnotatedString {
+        append("$d1Name (")
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFFE10600))) {
+            append(d1Archetype)
+        }
+        append(") and $d2Name (")
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF64C4FF))) {
+            append(d2Archetype)
+        }
+        append(") show contrasting styles. The primary battleground is ")
+        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+            append(biggestGapPillar)
+        }
+        append(", where $leaderName $intensity $trailingName. ")
+
+        append(when(biggestGapPillar) {
+            "Qualy Pace" -> "This suggests $leaderName is the favorite to dictate the tempo from the front on Saturday."
+            "Race Craft" -> "Expect $leaderName to be the more clinical overtaker, making them a threat regardless of grid position."
+            "Peak Performance" -> "In high-pressure scenarios, $leaderName has shown a superior ability to convert opportunities into podiums."
+            else -> ""
+        })
+    }
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, Color(0xFF38383F))
@@ -1068,20 +1095,35 @@ fun DriverInsightCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "EXPERT ANALYSIS",
+                    "STRATEGIC ANALYSIS",
                     color = Color(0xFFE10600),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Black
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            // Use the annotated string here instead of plain text
             Text(
-                text = "$winner $description",
+                text = annotatedAnalysis,
                 color = Color.White,
                 style = MaterialTheme.typography.bodyMedium,
-                lineHeight = 20.sp
+                lineHeight = 22.sp
             )
         }
+    }
+}
+
+// Keep your getDriverArchetype helper the same
+private fun getDriverArchetype(scores: Map<String, Float>): String {
+    val q = scores["Qualy Pace"] ?: 0f
+    val r = scores["Race Craft"] ?: 0f
+    val p = scores["Peak Performance"] ?: 0f
+    return when {
+        q > 8.5f && r < 7.5f -> "Qualy Specialist"
+        r > 8.5f && q < 7.5f -> "Sunday Warrior"
+        p > 9.0f -> "Clutch Performer"
+        q > 7.5f && r > 7.5f -> "Balanced Elite"
+        else -> "Tactical Driver"
     }
 }
 @Composable
