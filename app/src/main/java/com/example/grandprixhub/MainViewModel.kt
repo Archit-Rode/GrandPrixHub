@@ -19,8 +19,22 @@ import java.time.temporal.ChronoUnit
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.LazyListState
+// import com.google.firebase.auth.FirebaseAuth // Commented out to prevent crash
+import androidx.compose.runtime.State
+
+// --- Added AuthStatus Enum ---
+enum class AuthStatus { LoggedOut, Onboarding, LoggedIn }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+
+    // --- MOCKED: Auth & Repository ---
+    // Commented out the real instances to prevent runtime initialization crashes
+    // private val auth = FirebaseAuth.getInstance()
+    // private val repository = UserRepository()
+
+    // --- NEW: Auth State ---
+    // SET TO ONBOARDING TO TEST THE DRIVER SELECTION UI IMMEDIATELY
+    var authStatus = mutableStateOf(AuthStatus.Onboarding)
 
     // --- UI State ---
     val isDriversTab = mutableStateOf(true)
@@ -64,26 +78,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         fetchData()
     }
 
-    // --- NEW: PRACTICE RESULTS LOGIC (OpenF1) ---
+    // --- MOCKED: Auth Logic Functions (No Firebase Calls) ---
+
+    fun login(email: String, password: String) {
+        // Mock success for testing UI
+        authStatus.value = AuthStatus.LoggedIn
+        fetchData()
+    }
+
+    fun signUp(email: String, password: String, name: String) {
+        // Mock transition to onboarding for testing UI
+        authStatus.value = AuthStatus.Onboarding
+    }
+
+    fun saveUserPrefs(driverId: String) {
+        // Mock saving logic
+        authStatus.value = AuthStatus.LoggedIn
+        fetchData()
+    }
+
+    fun logout() {
+        authStatus.value = AuthStatus.LoggedOut
+    }
+
+    // --- PRACTICE RESULTS LOGIC (OpenF1) ---
 
     private fun fetchPracticeResults(year: String, circuitId: String, sessionName: String) {
         viewModelScope.launch {
             try {
-                // 1. Map Ergast Circuit ID to OpenF1 Short Name
                 val openF1CircuitName = mapErgastToOpenF1(circuitId)
-
-                // 2. Find the Session Key
                 val sessions = apiService.getOpenF1Sessions(
                     year = year.toInt(),
                     circuitName = openF1CircuitName,
                     sessionName = sessionName
                 )
                 val sessionKey = sessions.lastOrNull()?.sessionKey ?: return@launch
-
-                // 3. Get all Laps for that session
                 val allLaps = apiService.getOpenF1Laps(sessionKey = sessionKey)
 
-                // 4. Process: Find best lap for each driver
                 val results = allLaps
                     .filter { it.lapDuration != null && !it.isPitOutLap }
                     .groupBy { it.driverNumber }
@@ -95,7 +126,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     .mapIndexed { index, lap ->
                         val driverInfo = drivers.value.find { it.Driver.permanentNumber == lap.driverNumber.toString() }?.Driver
                         val driverName = if (driverInfo != null) "${driverInfo.givenName} ${driverInfo.familyName}" else "Driver ${lap.driverNumber}"
-
                         val gap = if (index == 0) "INTERVAL"
                         else "+${String.format("%.3f", lap.lapDuration!! - (allLaps.filter { it.lapDuration != null }.minByOrNull { it.lapDuration!! }?.lapDuration ?: 0.0))}"
 
@@ -111,7 +141,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 selectedSessionResults.value = results
                 selectedSessionType.value = sessionName.uppercase()
                 isShowingResults.value = results.isNotEmpty()
-
             } catch (e: Exception) {
                 e.printStackTrace()
                 isShowingResults.value = false
@@ -155,11 +184,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- UPDATED: Main Session Results Dispatcher ---
-
     fun fetchSessionResults(year: String, round: String, type: String) {
         val currentRace = selectedRace.value ?: return
-
         viewModelScope.launch {
             try {
                 when (type.lowercase()) {
@@ -195,14 +221,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- EXISTING FUNCTIONS (Unchanged) ---
-
     fun fetchLiveHighlight(raceName: String, sessionName: String) {
         viewModelScope.launch {
             try {
-                // 1. Normalize to Uppercase so "Practice 1" matches "PRACTICE 1"
                 val session = sessionName.uppercase()
-
                 val highlightKeyword = when {
                     session.contains("QUALIFYING") -> "Qualifying Highlights"
                     session.contains("SPRINT") -> "Sprint Highlights"
@@ -211,18 +233,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     session.contains("PRACTICE 3") || session.contains("FP3") -> "FP3 Highlights"
                     else -> "Race Highlights"
                 }
-
-                // 2. Refine the query to be exactly what F1 uses
                 val query = "$highlightKeyword | ${selectedYear.value} $raceName"
-
                 val response = youtubeApi.searchVideos(
                     query = query,
                     apiKey = YOUTUBE_API_KEY,
-                    // Explicitly tell YouTube to ONLY look at the official F1 channel
                     channelId = "UCB_qr75-ydFVKSF9Dmo6izg",
                     order = "relevance"
                 )
-
                 val item = response.items.firstOrNull()
                 selectedVideoId.value = item?.id?.videoId ?: ""
                 selectedThumbnailUrl.value = item?.snippet?.thumbnails?.high?.url ?: ""

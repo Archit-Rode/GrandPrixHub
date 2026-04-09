@@ -58,6 +58,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.ui.window.Dialog
 
 enum class TimeMode { MY_TIME, TRACK_TIME }
 enum class SessionStatus { PAST, LIVE, UPCOMING }
@@ -74,14 +77,14 @@ class MainActivity : ComponentActivity() {
             val viewModel: MainViewModel = viewModel()
             var selectedTeamId by remember { mutableStateOf<String?>(null) }
             var currentBottomTab by remember { mutableStateOf("Results") }
+            var showAuthDialog by remember { mutableStateOf(false) } // State for the popup
+            val authStatus by viewModel.authStatus
 
             // 2. Handle Android 13+ Notification Permission Request
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val launcher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
-                ) { isGranted ->
-                    // Notification permission response handled here
-                }
+                ) { /* response handled */ }
                 LaunchedEffect(Unit) {
                     launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 }
@@ -114,7 +117,26 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 },
-                                actions = { SeasonDropdown(viewModel) },
+                                actions = {
+                                    // 🏎️ Combined Actions: Dropdown + Profile Icon
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        SeasonDropdown(viewModel)
+
+                                        IconButton(onClick = {
+                                            if (authStatus == AuthStatus.LoggedIn) {
+                                                viewModel.logout() // Log out on click for now
+                                            } else {
+                                                showAuthDialog = true
+                                            }
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.Default.AccountCircle,
+                                                contentDescription = "Profile",
+                                                tint = if (authStatus == AuthStatus.LoggedIn) Color(0xFFE10600) else Color.White
+                                            )
+                                        }
+                                    }
+                                },
                                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                                     containerColor = Color(0xFF15151E),
                                     titleContentColor = Color.White
@@ -149,6 +171,7 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 bottomBar = {
+                    // ... (Your existing NavigationBar code - keep it the same)
                     NavigationBar(
                         containerColor = Color(0xFF1F1F27),
                         contentColor = Color.White
@@ -208,34 +231,40 @@ class MainActivity : ComponentActivity() {
                 }
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
+                    // 1. Navigation Logic
                     when (currentBottomTab) {
                         "Schedule" -> {
-                            if (viewModel.selectedRace.value == null) {
-                                ScheduleScreen(viewModel)
-                            } else {
-                                RaceDetailScreen(viewModel)
-                            }
+                            if (viewModel.selectedRace.value == null) ScheduleScreen(viewModel)
+                            else RaceDetailScreen(viewModel)
                         }
                         "Results" -> {
                             if (selectedTeamId == null) {
-                                if (viewModel.isDriversTab.value) {
-                                    DriverListScreen(viewModel)
-                                } else {
-                                    ConstructorListScreen(viewModel) { teamId -> selectedTeamId = teamId }
-                                }
+                                if (viewModel.isDriversTab.value) DriverListScreen(viewModel)
+                                else ConstructorListScreen(viewModel) { selectedTeamId = it }
                             } else {
-                                TeamDetailScreen(
-                                    teamId = selectedTeamId!!,
-                                    viewModel = viewModel,
-                                    onBack = { selectedTeamId = null }
-                                )
+                                TeamDetailScreen(teamId = selectedTeamId!!, viewModel = viewModel, onBack = { selectedTeamId = null })
                             }
                         }
                         "Compare" -> {
-                            if (viewModel.selectedDriver1 != null && viewModel.selectedDriver2 != null) {
-                                DriverComparisonScreen(viewModel)
-                            } else {
-                                ComparisonSelectionScreen(viewModel)
+                            if (viewModel.selectedDriver1 != null && viewModel.selectedDriver2 != null) DriverComparisonScreen(viewModel)
+                            else ComparisonSelectionScreen(viewModel)
+                        }
+                    }
+
+                    // 2. Auth Overlay (Appears on top when icon clicked)
+                    if (showAuthDialog) {
+                        Dialog(onDismissRequest = { showAuthDialog = false }) {
+                            Box(modifier = Modifier.fillMaxHeight(0.85f).clip(RoundedCornerShape(16.dp))) {
+                                AuthScreen(viewModel)
+                            }
+                        }
+                    }
+
+                    // 3. Onboarding Overlay (Appears only after Signup)
+                    if (authStatus == AuthStatus.Onboarding) {
+                        Dialog(onDismissRequest = { }) { // Non-cancelable
+                            OnboardingScreen(viewModel) {
+                                viewModel.authStatus.value = AuthStatus.LoggedIn
                             }
                         }
                     }
@@ -1313,7 +1342,53 @@ fun SessionResultRow(result: Any) {
         Text(text = detail, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }
 }
-
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun MainContent(viewModel: MainViewModel) {
+//    var showAuthDialog by remember { mutableStateOf(false) }
+//    val authStatus by viewModel.authStatus
+//
+//    Scaffold(
+//        topBar = {
+//            CenterAlignedTopAppBar(
+//                title = { Text("GRAND PRIX HUB", fontWeight = FontWeight.Black, fontSize = 18.sp) },
+//                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+//                    containerColor = Color(0xFF15151E),
+//                    titleContentColor = Color.White
+//                ),
+//                actions = {
+//                    IconButton(onClick = {
+//                        if (authStatus == AuthStatus.LoggedIn) {
+//                            // Maybe show a "Logout" menu here
+//                        } else {
+//                            showAuthDialog = true
+//                        }
+//                    }) {
+//                        Icon(
+//                            imageVector = Icons.Default.AccountCircle,
+//                            contentDescription = "Profile",
+//                            tint = if (authStatus == AuthStatus.LoggedIn) Color(0xFFE10600) else Color.White
+//                        )
+//                    }
+//                }
+//            )
+//        }
+//    ) { padding ->
+//        // YOUR EXISTING UI (Tabs, Standings, etc.)
+//        Box(modifier = Modifier.padding(padding)) {
+//            F1TabsScreen(viewModel)
+//
+//            // Show Auth as an Overlay when icon is clicked
+//            if (showAuthDialog) {
+//                Dialog(onDismissRequest = { showAuthDialog = false }) {
+//                    Box(modifier = Modifier.fillMaxHeight(0.8f)) {
+//                        AuthScreen(viewModel) // Your existing AuthScreen
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
 fun getTeamColor(id: String?): Color = when (id?.lowercase()) {
     "red_bull" -> Color(0xFF3671C6)
     "mercedes" -> Color(0xFF27F4D2)
