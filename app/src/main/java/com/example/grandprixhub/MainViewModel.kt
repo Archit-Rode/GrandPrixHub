@@ -2,9 +2,10 @@ package com.example.grandprixhub
 
 import android.app.Application
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.*
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -12,29 +13,28 @@ import java.time.LocalDateTime
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
-import java.util.concurrent.TimeUnit
-import java.time.Instant
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.LazyListState
-// import com.google.firebase.auth.FirebaseAuth // Commented out to prevent crash
-import androidx.compose.runtime.State
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.userProfileChangeRequest
+import com.google.firebase.firestore.FirebaseFirestore
 
-// --- Added AuthStatus Enum ---
+// --- REQUIRED ENUMS ---
 enum class AuthStatus { LoggedOut, Onboarding, LoggedIn }
+//enum class TimeMode { MY_TIME, TRACK_TIME }
+//enum class SessionStatus { PAST, LIVE, UPCOMING }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    // --- MOCKED: Auth & Repository ---
-    // Commented out the real instances to prevent runtime initialization crashes
-    // private val auth = FirebaseAuth.getInstance()
-    // private val repository = UserRepository()
+    private val auth = FirebaseAuth.getInstance()
+    private val db = FirebaseFirestore.getInstance()
+    private val repository = UserRepository()
 
-    // --- NEW: Auth State ---
-    // SET TO ONBOARDING TO TEST THE DRIVER SELECTION UI IMMEDIATELY
-    var authStatus = mutableStateOf(AuthStatus.Onboarding)
+    // --- Auth State ---
+    var authStatus = mutableStateOf(if (auth.currentUser != null) AuthStatus.LoggedIn else AuthStatus.LoggedOut)
+    val userName = mutableStateOf(auth.currentUser?.displayName ?: "F1 Fan")
+    val userEmail = mutableStateOf(auth.currentUser?.email ?: "")
+    val favDriverName = mutableStateOf("None Selected")
 
     // --- UI State ---
     val isDriversTab = mutableStateOf(true)
@@ -49,6 +49,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var selectedDriver1 by mutableStateOf<DriverStanding?>(null)
     var selectedDriver2 by mutableStateOf<DriverStanding?>(null)
     var timeMode by mutableStateOf(TimeMode.MY_TIME)
+
     var driver1DNA = mutableStateOf<Map<String, Float>>(emptyMap())
     var driver2DNA = mutableStateOf<Map<String, Float>>(emptyMap())
 
@@ -59,7 +60,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val selectedThumbnailUrl = mutableStateOf("")
     val selectedVideoId = mutableStateOf("")
 
-    // --- Retrofit Setup ---
     private val YOUTUBE_API_KEY = BuildConfig.YOUTUBE_API_KEY
 
     private val youtubeApi = Retrofit.Builder()
@@ -76,178 +76,65 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         fetchData()
+        if (auth.currentUser != null) {
+            fetchUserPreferences()
+        }
     }
 
-    // --- MOCKED: Auth Logic Functions (No Firebase Calls) ---
-
+    // --- Auth Logic ---
     fun login(email: String, password: String) {
-        // Mock success for testing UI
-        authStatus.value = AuthStatus.LoggedIn
-        fetchData()
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnSuccessListener {
+                userName.value = auth.currentUser?.displayName ?: "F1 Fan"
+                userEmail.value = auth.currentUser?.email ?: ""
+                authStatus.value = AuthStatus.LoggedIn
+                fetchUserPreferences()
+                fetchData()
+            }
     }
 
     fun signUp(email: String, password: String, name: String) {
-        // Mock transition to onboarding for testing UI
-        authStatus.value = AuthStatus.Onboarding
+        auth.createUserWithEmailAndPassword(email, password)
+            .addOnSuccessListener { result ->
+                val profileUpdates = userProfileChangeRequest { displayName = name }
+                result.user?.updateProfile(profileUpdates)?.addOnCompleteListener {
+                    userName.value = name
+                    userEmail.value = email
+                    authStatus.value = AuthStatus.Onboarding
+                }
+            }
     }
 
     fun saveUserPrefs(driverId: String) {
-        // Mock saving logic
-        authStatus.value = AuthStatus.LoggedIn
-        fetchData()
+        repository.saveUserPreferences(driverId) { success ->
+            if (success) {
+                authStatus.value = AuthStatus.LoggedIn
+                fetchUserPreferences()
+                fetchData()
+            }
+        }
+    }
+
+    private fun fetchUserPreferences() {
+        val uid = auth.currentUser?.uid ?: return
+        db.collection("users").document(uid).get()
+            .addOnSuccessListener { doc ->
+                val favId = doc.getString("favDriver")
+                val driver = drivers.value.find { it.Driver.driverId == favId }
+                favDriverName.value = if (driver != null) {
+                    "${driver.Driver.givenName} ${driver.Driver.familyName}"
+                } else {
+                    favId?.replace("_", " ")?.replaceFirstChar { it.uppercase() } ?: "None Selected"
+                }
+            }
     }
 
     fun logout() {
+        auth.signOut()
         authStatus.value = AuthStatus.LoggedOut
-    }
-
-    // --- PRACTICE RESULTS LOGIC (OpenF1) ---
-
-    private fun fetchPracticeResults(year: String, circuitId: String, sessionName: String) {
-        viewModelScope.launch {
-            try {
-                val openF1CircuitName = mapErgastToOpenF1(circuitId)
-                val sessions = apiService.getOpenF1Sessions(
-                    year = year.toInt(),
-                    circuitName = openF1CircuitName,
-                    sessionName = sessionName
-                )
-                val sessionKey = sessions.lastOrNull()?.sessionKey ?: return@launch
-                val allLaps = apiService.getOpenF1Laps(sessionKey = sessionKey)
-
-                val results = allLaps
-                    .filter { it.lapDuration != null && !it.isPitOutLap }
-                    .groupBy { it.driverNumber }
-                    .map { (driverNum, laps) ->
-                        val bestLap = laps.minByOrNull { it.lapDuration!! }!!
-                        bestLap
-                    }
-                    .sortedBy { it.lapDuration }
-                    .mapIndexed { index, lap ->
-                        val driverInfo = drivers.value.find { it.Driver.permanentNumber == lap.driverNumber.toString() }?.Driver
-                        val driverName = if (driverInfo != null) "${driverInfo.givenName} ${driverInfo.familyName}" else "Driver ${lap.driverNumber}"
-                        val gap = if (index == 0) "INTERVAL"
-                        else "+${String.format("%.3f", lap.lapDuration!! - (allLaps.filter { it.lapDuration != null }.minByOrNull { it.lapDuration!! }?.lapDuration ?: 0.0))}"
-
-                        PracticeResultDisplay(
-                            position = index + 1,
-                            driverNumber = lap.driverNumber.toString(),
-                            driverName = driverName,
-                            bestLapTime = formatLapTime(lap.lapDuration!!),
-                            gap = gap
-                        )
-                    }
-
-                selectedSessionResults.value = results
-                selectedSessionType.value = sessionName.uppercase()
-                isShowingResults.value = results.isNotEmpty()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                isShowingResults.value = false
-            }
-        }
-    }
-
-    private fun formatLapTime(totalSeconds: Double): String {
-        val minutes = (totalSeconds / 60).toInt()
-        val seconds = totalSeconds % 60
-        return String.format("%d:%06.3f", minutes, seconds)
-    }
-
-    private fun mapErgastToOpenF1(ergastId: String): String {
-        return when (ergastId) {
-            "albert_park" -> "Melbourne"
-            "bahrain" -> "Sakhir"
-            "jeddah" -> "Jeddah"
-            "suzuka" -> "Suzuka"
-            "shanghai" -> "Shanghai"
-            "miami" -> "Miami"
-            "imola" -> "Imola"
-            "monaco" -> "Monaco"
-            "villeneuve" -> "Montreal"
-            "catalunya" -> "Barcelona"
-            "red_bull_ring" -> "Spielberg"
-            "silverstone" -> "Silverstone"
-            "hungaroring" -> "Budapest"
-            "spa" -> "Spa-Francorchamps"
-            "zandvoort" -> "Zandvoort"
-            "monza" -> "Monza"
-            "baku" -> "Baku"
-            "marina_bay" -> "Singapore"
-            "americas" -> "Austin"
-            "rodriguez" -> "Mexico City"
-            "interlagos" -> "São Paulo"
-            "vegas" -> "Las Vegas"
-            "losail" -> "Lusail"
-            "yas_marina" -> "Abu Dhabi"
-            else -> ergastId.replace("_", " ").capitalize()
-        }
-    }
-
-    fun fetchSessionResults(year: String, round: String, type: String) {
-        val currentRace = selectedRace.value ?: return
-        viewModelScope.launch {
-            try {
-                when (type.lowercase()) {
-                    "fp1" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 1")
-                    "fp2" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 2")
-                    "fp3" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 3")
-                    "qualifying" -> {
-                        val response = apiService.getQualifyingResults(year, round)
-                        val race = response.MRData.RaceTable.Races.firstOrNull()
-                        selectedSessionResults.value = race?.QualifyingResults ?: emptyList()
-                        selectedSessionType.value = "QUALIFYING"
-                        isShowingResults.value = selectedSessionResults.value.isNotEmpty()
-                    }
-                    "sprint" -> {
-                        val response = apiService.getSprintResults(year, round)
-                        val race = response.MRData.RaceTable.Races.firstOrNull()
-                        selectedSessionResults.value = race?.SprintResults ?: emptyList()
-                        selectedSessionType.value = "SPRINT RACE"
-                        isShowingResults.value = selectedSessionResults.value.isNotEmpty()
-                    }
-                    "results" -> {
-                        val response = apiService.getRaceResults(year, round)
-                        val race = response.MRData.RaceTable.Races.firstOrNull()
-                        selectedSessionResults.value = race?.Results ?: emptyList()
-                        selectedSessionType.value = "GRAND PRIX"
-                        isShowingResults.value = selectedSessionResults.value.isNotEmpty()
-                    }
-                }
-            } catch (e: Exception) {
-                selectedSessionResults.value = emptyList()
-                isShowingResults.value = false
-            }
-        }
-    }
-
-    fun fetchLiveHighlight(raceName: String, sessionName: String) {
-        viewModelScope.launch {
-            try {
-                val session = sessionName.uppercase()
-                val highlightKeyword = when {
-                    session.contains("QUALIFYING") -> "Qualifying Highlights"
-                    session.contains("SPRINT") -> "Sprint Highlights"
-                    session.contains("PRACTICE 1") || session.contains("FP1") -> "FP1 Highlights"
-                    session.contains("PRACTICE 2") || session.contains("FP2") -> "FP2 Highlights"
-                    session.contains("PRACTICE 3") || session.contains("FP3") -> "FP3 Highlights"
-                    else -> "Race Highlights"
-                }
-                val query = "$highlightKeyword | ${selectedYear.value} $raceName"
-                val response = youtubeApi.searchVideos(
-                    query = query,
-                    apiKey = YOUTUBE_API_KEY,
-                    channelId = "UCB_qr75-ydFVKSF9Dmo6izg",
-                    order = "relevance"
-                )
-                val item = response.items.firstOrNull()
-                selectedVideoId.value = item?.id?.videoId ?: ""
-                selectedThumbnailUrl.value = item?.snippet?.thumbnails?.high?.url ?: ""
-            } catch (e: Exception) {
-                selectedVideoId.value = ""
-                selectedThumbnailUrl.value = ""
-            }
-        }
+        userName.value = "F1 Fan"
+        userEmail.value = ""
+        favDriverName.value = "None Selected"
     }
 
     private fun fetchData() {
@@ -255,10 +142,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         fetchSchedule(year)
         viewModelScope.launch {
             try {
-                val driverResponse = apiService.getDriverStandings(year)
-                drivers.value = driverResponse.MRData.StandingsTable.StandingsLists.firstOrNull()?.DriverStandings?.filterNotNull() ?: emptyList()
-                val constructorResponse = apiService.getConstructorStandings(year)
-                constructors.value = constructorResponse.MRData.StandingsTable.StandingsLists.firstOrNull()?.ConstructorStandings?.filterNotNull() ?: emptyList()
+                val standings = apiService.getDriverStandings(year)
+                // Updated to StandingsLists as per your F1ApiService
+                drivers.value = standings.MRData.StandingsTable.StandingsLists.firstOrNull()?.DriverStandings ?: emptyList()
+
+                val constStandings = apiService.getConstructorStandings(year)
+                constructors.value = constStandings.MRData.StandingsTable.StandingsLists.firstOrNull()?.ConstructorStandings ?: emptyList()
             } catch (e: Exception) {
                 drivers.value = emptyList()
                 constructors.value = emptyList()
@@ -271,7 +160,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val scheduleResponse = apiService.getSeasonSchedule(year)
                 val fullCalendar = scheduleResponse.MRData.RaceTable.Races
-                val resultsList = try { apiService.getFullSeasonResults(year).MRData.RaceTable.Races } catch (e: Exception) { emptyList() }
+
+                // Fetching results to merge
+                val resultsList = try { apiService.getSeasonResults(year).MRData.RaceTable.Races } catch (e: Exception) { emptyList() }
+
                 val mergedList = fullCalendar.map { calendarRace ->
                     val matchingResult = resultsList.find { it.round == calendarRace.round }
                     if (matchingResult != null) calendarRace.copy(Results = matchingResult.Results) else calendarRace
@@ -338,6 +230,92 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun fetchSessionResults(year: String, round: String, type: String) {
+        val currentRace = selectedRace.value ?: return
+        viewModelScope.launch {
+            try {
+                when (type.lowercase()) {
+                    "fp1" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 1")
+                    "fp2" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 2")
+                    "fp3" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 3")
+                    "qualifying" -> {
+                        val response = apiService.getQualifyingResults(year, round)
+                        selectedSessionResults.value = response.MRData.RaceTable.Races.firstOrNull()?.QualifyingResults ?: emptyList()
+                        selectedSessionType.value = "QUALIFYING"
+                        isShowingResults.value = true
+                    }
+                    "results" -> {
+                        val response = apiService.getRaceResults(year, round)
+                        selectedSessionResults.value = response.MRData.RaceTable.Races.firstOrNull()?.Results ?: emptyList()
+                        selectedSessionType.value = "GRAND PRIX"
+                        isShowingResults.value = true
+                    }
+                }
+            } catch (e: Exception) { isShowingResults.value = false }
+        }
+    }
+    private fun formatLapTime(totalSeconds: Double): String {
+        val minutes = (totalSeconds / 60).toInt()
+        val seconds = totalSeconds % 60
+        return String.format("%d:%06.3f", minutes, seconds)
+    }
+    private fun fetchPracticeResults(year: String, circuitId: String, sessionName: String) {
+        viewModelScope.launch {
+            try {
+                val openF1CircuitName = mapErgastToOpenF1(circuitId)
+                val sessions = apiService.getOpenF1Sessions(
+                    year = year.toInt(),
+                    circuitName = openF1CircuitName,
+                    sessionName = sessionName
+                )
+
+                // --- FIX: Don't just return. Open the sheet with empty results ---
+                val sessionKey = sessions.lastOrNull()?.sessionKey ?: run {
+                    selectedSessionResults.value = emptyList()
+                    selectedSessionType.value = sessionName.uppercase()
+                    isShowingResults.value = true // This forces the UI to react
+                    return@launch
+                }
+
+                val allLaps = apiService.getOpenF1Laps(sessionKey = sessionKey)
+
+                val results = allLaps.filter { it.lapDuration != null && !it.isPitOutLap }
+                    .groupBy { it.driverNumber }
+                    .map { (_, laps) -> laps.minByOrNull { it.lapDuration!! }!! }
+                    .sortedBy { it.lapDuration }
+                    .mapIndexed { index, lap ->
+                        val driverInfo = drivers.value.find { it.Driver.permanentNumber == lap.driverNumber.toString() }?.Driver
+                        PracticeResultDisplay(
+                            position = index + 1,
+                            driverNumber = lap.driverNumber.toString(),
+                            driverName = driverInfo?.familyName ?: "Driver ${lap.driverNumber}",
+                            bestLapTime = formatLapTime(lap.lapDuration!!),
+                            gap = if (index == 0) "INTERVAL" else "+${String.format("%.3f", lap.lapDuration!! - (allLaps.filter { it.lapDuration != null }.minOfOrNull { it.lapDuration!! } ?: 0.0))}"
+                        )
+                    }
+
+                selectedSessionResults.value = results
+                selectedSessionType.value = sessionName.uppercase()
+                isShowingResults.value = true
+            } catch (e: Exception) {
+                // Even on error, you might want to show an empty state so the UI doesn't "hang"
+                isShowingResults.value = false
+            }
+        }
+    }
+
+    fun fetchLiveHighlight(raceName: String, sessionName: String) {
+        viewModelScope.launch {
+            try {
+                val query = "${sessionName.uppercase()} Highlights | ${selectedYear.value} $raceName"
+                val response = youtubeApi.searchVideos(query = query, apiKey = YOUTUBE_API_KEY)
+                val item = response.items.firstOrNull()
+                selectedVideoId.value = item?.id?.videoId ?: ""
+                selectedThumbnailUrl.value = item?.snippet?.thumbnails?.high?.url ?: ""
+            } catch (e: Exception) { }
+        }
+    }
+
     fun loadDriverStats(driverId: String, isDriverOne: Boolean) {
         viewModelScope.launch {
             try {
@@ -354,13 +332,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val avgGrid = results.map { it.grid.toFloat() }.average().toFloat()
         val qualyScore = (11f - avgGrid).coerceIn(1f, 10f)
         val classified = results.filter { it.status == "Finished" || it.status.contains("Lap") }
-        val avgGained = if (classified.isNotEmpty()) {
-            classified.map { it.grid.toInt() - it.position.toInt() }.average().toFloat()
-        } else 0f
+        val avgGained = if (classified.isNotEmpty()) classified.map { it.grid.toInt() - it.position.toInt() }.average().toFloat() else 0f
         val craftScore = (5f + avgGained).coerceIn(1f, 10f)
-        val wins = results.count { it.position == "1" }
-        val podiums = results.count { it.position.toInt() in 1..3 }
-        val peakScore = ((wins * 3f) + podiums).coerceIn(1f, 10f)
+        val peakScore = ((results.count { it.position == "1" } * 3f) + results.count { it.position.toInt() in 1..3 }).coerceIn(1f, 10f)
         return mapOf("Qualy Pace" to qualyScore, "Race Craft" to craftScore, "Peak Performance" to peakScore)
+    }
+
+    private fun mapErgastToOpenF1(ergastId: String): String = when (ergastId) {
+        "albert_park" -> "Melbourne"
+        "bahrain" -> "Sakhir"
+        "jeddah" -> "Jeddah"
+        "suzuka" -> "Suzuka"
+        "shanghai" -> "Shanghai"
+        "miami" -> "Miami"
+        "imola" -> "Imola"
+        "monaco" -> "Monaco"
+        "villeneuve" -> "Montreal"
+        "catalunya" -> "Barcelona"
+        "red_bull_ring" -> "Spielberg"
+        "silverstone" -> "Silverstone"
+        "hungaroring" -> "Budapest"
+        "spa" -> "Spa-Francorchamps"
+        "zandvoort" -> "Zandvoort"
+        "monza" -> "Monza"
+        "baku" -> "Baku"
+        "marina_bay" -> "Singapore"
+        "americas" -> "Austin"
+        "rodriguez" -> "Mexico City"
+        "interlagos" -> "São Paulo"
+        "vegas" -> "Las Vegas"
+        "losail" -> "Lusail"
+        "yas_marina" -> "Abu Dhabi"
+        else -> ergastId.replace("_", " ").replaceFirstChar { it.uppercase() }
     }
 }

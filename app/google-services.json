@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "559148409621",
+    "project_id": "grandprixhub-a872c",
+    "storage_bucket": "grandprixhub-a872c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:559148409621:android:2a9153ae56db0307d03f1c",
+        "android_client_info": {
+          "package_name": "com.example.grandprixhub"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6jIcM9-FoJi6RAmqZ2GkUSR4oJ0LywJc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
