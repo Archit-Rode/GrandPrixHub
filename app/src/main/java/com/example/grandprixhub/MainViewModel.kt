@@ -307,12 +307,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchLiveHighlight(raceName: String, sessionName: String) {
         viewModelScope.launch {
             try {
-                val query = "${sessionName.uppercase()} Highlights | ${selectedYear.value} $raceName"
-                val response = youtubeApi.searchVideos(query = query, apiKey = YOUTUBE_API_KEY)
+                // 🏎️ Wrap terms in quotes to force YouTube to match the exact session and race title
+                val cleanRaceName = raceName.replace("Grand Prix", "", ignoreCase = true).trim()
+                val query = "\"${sessionName.uppercase()} Highlights\" \"${selectedYear.value} $cleanRaceName\""
+
+                // Channel ID "UCB_qr75-ydFVKSF9Dmo6izg" is the official F1 channel
+                val response = youtubeApi.searchVideos(
+                    query = query,
+                    apiKey = YOUTUBE_API_KEY,
+                    channelId = "UCB_qr75-ydFVKSF9Dmo6izg",
+                    order = "relevance" // Keeps it locked to the best match on their channel
+                )
+
                 val item = response.items.firstOrNull()
                 selectedVideoId.value = item?.id?.videoId ?: ""
                 selectedThumbnailUrl.value = item?.snippet?.thumbnails?.high?.url ?: ""
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
