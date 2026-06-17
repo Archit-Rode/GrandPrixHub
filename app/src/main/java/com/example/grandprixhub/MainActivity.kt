@@ -345,7 +345,7 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                         val onSessionClick: (String) -> Unit = { sessionType ->
                             val type = when {
                                 sessionType.contains("Practice 1") -> "fp1"; sessionType.contains("Practice 2") -> "fp2"; sessionType.contains("Practice 3") -> "fp3"
-                                sessionType.contains("Qualifying") -> "qualifying"; sessionType.contains("Sprint Race") -> "sprint"; else -> "results"
+                                sessionType.contains("Sprint Qualifying") -> "sprint_qualifying";sessionType.contains("Qualifying") -> "qualifying"; sessionType.contains("Sprint Race") -> "sprint"; else -> "results"
                             }
                             viewModel.fetchSessionResults(season, race.round, type)
                         }

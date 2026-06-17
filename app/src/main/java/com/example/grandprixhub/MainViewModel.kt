@@ -238,6 +238,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "fp1" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 1")
                     "fp2" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 2")
                     "fp3" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 3")
+                    "sprint_qualifying" -> {
+                        try {
+                            // 🏎️ Fetch the Sprint weekend dataset
+                            val response = apiService.getSprintResults(year, round)
+                            val sprintRace = response.MRData.RaceTable.Races.firstOrNull()
+                            val sprintResults = sprintRace?.SprintResults ?: emptyList()
+
+                            // Map the grid starting positions from the Sprint Race to simulate the Shootout results
+                            val shootoutClassification = sprintResults.map { raceResult ->
+                                QualifyingResult(
+                                    position = raceResult.grid, // Their starting spot is where they qualified!
+                                    number = raceResult.Driver.permanentNumber,
+                                    Driver = raceResult.Driver,
+                                    Constructor = raceResult.Constructor,
+                                    Q1 = null,
+                                    Q2 = null,
+                                    Q3 = null
+                                )
+                            }.sortedBy {
+                                // Sort them cleanly by their qualifying position string safely transformed to Int
+                                it.position.toIntOrNull() ?: 99
+                            }
+
+                            selectedSessionResults.value = shootoutClassification
+                        } catch (e: Exception) {
+                            selectedSessionResults.value = emptyList()
+                        }
+                        selectedSessionType.value = "SPRINT QUALIFYING"
+                        isShowingResults.value = true
+                    }
+
+                    // 🏎️ FIXED: Handle Sprint Race Results
+                    "sprint" -> {
+                        val response = apiService.getSprintResults(year, round)
+                        selectedSessionResults.value = response.MRData.RaceTable.Races.firstOrNull()?.SprintResults ?: emptyList()
+                        selectedSessionType.value = "SPRINT RACE"
+                        isShowingResults.value = true
+                    }
                     "qualifying" -> {
                         val response = apiService.getQualifyingResults(year, round)
                         selectedSessionResults.value = response.MRData.RaceTable.Races.firstOrNull()?.QualifyingResults ?: emptyList()
