@@ -240,28 +240,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "fp3" -> fetchPracticeResults(year, currentRace.Circuit.circuitId, "Practice 3")
                     "sprint_qualifying" -> {
                         try {
-                            // 🏎️ Fetch the Sprint weekend dataset
-                            val response = apiService.getSprintResults(year, round)
-                            val sprintRace = response.MRData.RaceTable.Races.firstOrNull()
-                            val sprintResults = sprintRace?.SprintResults ?: emptyList()
+                            val openF1CircuitName = mapErgastToOpenF1(currentRace.Circuit.circuitId)
+                            val sessions = apiService.getOpenF1Sessions(
+                                year = year.toInt(),
+                                circuitName = openF1CircuitName,
+                                sessionName = "Sprint Qualifying" // OpenF1's official term for the Shootout
+                            )
 
-                            // Map the grid starting positions from the Sprint Race to simulate the Shootout results
-                            val shootoutClassification = sprintResults.map { raceResult ->
-                                QualifyingResult(
-                                    position = raceResult.grid, // Their starting spot is where they qualified!
-                                    number = raceResult.Driver.permanentNumber,
-                                    Driver = raceResult.Driver,
-                                    Constructor = raceResult.Constructor,
-                                    Q1 = null,
-                                    Q2 = null,
-                                    Q3 = null
-                                )
-                            }.sortedBy {
-                                // Sort them cleanly by their qualifying position string safely transformed to Int
-                                it.position.toIntOrNull() ?: 99
+                            val sessionKey = sessions.lastOrNull()?.sessionKey ?: run {
+                                selectedSessionResults.value = emptyList()
+                                selectedSessionType.value = "SPRINT QUALIFYING"
+                                isShowingResults.value = true
+                                return@launch
                             }
 
-                            selectedSessionResults.value = shootoutClassification
+                            val allLaps = apiService.getOpenF1Laps(sessionKey = sessionKey)
+
+                            // 🏎️ Use the exact operational math from your practice pipeline to calculate INTERVAL and gaps
+                            val results = allLaps.filter { it.lapDuration != null && !it.isPitOutLap }
+                                .groupBy { it.driverNumber }
+                                .map { (_, laps) -> laps.minByOrNull { it.lapDuration!! }!! }
+                                .sortedBy { it.lapDuration }
+                                .mapIndexed { index, lap ->
+                                    val driverInfo = drivers.value.find { it.Driver.permanentNumber == lap.driverNumber.toString() }?.Driver
+                                    PracticeResultDisplay(
+                                        position = index + 1,
+                                        driverNumber = lap.driverNumber.toString(),
+                                        driverName = driverInfo?.familyName ?: "Driver ${lap.driverNumber}",
+                                        bestLapTime = formatLapTime(lap.lapDuration!!),
+                                        gap = if (index == 0) "INTERVAL" else "+${String.format(java.util.Locale.ENGLISH, "%.3f", lap.lapDuration!! - (allLaps.filter { it.lapDuration != null }.minOfOrNull { it.lapDuration!! } ?: 0.0))}"
+                                    )
+                                }
+
+                            selectedSessionResults.value = results
                         } catch (e: Exception) {
                             selectedSessionResults.value = emptyList()
                         }
@@ -345,16 +356,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchLiveHighlight(raceName: String, sessionName: String) {
         viewModelScope.launch {
             try {
-                // 🏎️ Wrap terms in quotes to force YouTube to match the exact session and race title
                 val cleanRaceName = raceName.replace("Grand Prix", "", ignoreCase = true).trim()
-                val query = "\"${sessionName.uppercase()} Highlights\" \"${selectedYear.value} $cleanRaceName\""
 
-                // Channel ID "UCB_qr75-ydFVKSF9Dmo6izg" is the official F1 channel
+                // 🏎️ Force "F1" inside the strict quote brackets so YouTube MUST filter out F2/F3 content
+                val query = "\"F1 ${sessionName.uppercase()} Highlights\" \"${selectedYear.value} $cleanRaceName\""
+
                 val response = youtubeApi.searchVideos(
                     query = query,
                     apiKey = YOUTUBE_API_KEY,
-                    channelId = "UCB_qr75-ydFVKSF9Dmo6izg",
-                    order = "relevance" // Keeps it locked to the best match on their channel
+                    channelId = "UCB_qr75-ydFVKSF9Dmo6izg", // Keeps it bound to the official channel
+                    order = "relevance"
                 )
 
                 val item = response.items.firstOrNull()
