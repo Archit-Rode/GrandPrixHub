@@ -189,7 +189,10 @@ class MainActivity : ComponentActivity() {
                     if (showAuthDialog) {
                         Dialog(onDismissRequest = { showAuthDialog = false }) {
                             Box(modifier = Modifier.fillMaxHeight(0.85f).clip(RoundedCornerShape(16.dp))) {
-                                AuthScreen(viewModel)
+                                // 🏎️ Added the trailing lambda to listen for success!
+                                AuthScreen(viewModel) {
+                                    showAuthDialog = false
+                                }
                             }
                         }
                     }
