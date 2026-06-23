@@ -96,11 +96,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun signUp(email: String, password: String, name: String) {
         auth.createUserWithEmailAndPassword(email, password)
             .addOnSuccessListener { result ->
+                val uid = result.user?.uid
                 val profileUpdates = userProfileChangeRequest { displayName = name }
+
                 result.user?.updateProfile(profileUpdates)?.addOnCompleteListener {
-                    userName.value = name
-                    userEmail.value = email
-                    authStatus.value = AuthStatus.Onboarding
+                    if (uid != null) {
+                        val initialUserData = hashMapOf(
+                            "name" to name,
+                            "email" to email,
+                            "favDriver" to "none"
+                        )
+
+                        // 🏎️ ROOT LEVEL WRITE: Targets db -> users -> [uid_document] directly
+                        db.collection("users")
+                            .document(uid)
+                            .set(initialUserData)
+                            .addOnSuccessListener {
+                                userName.value = name
+                                userEmail.value = email
+                                authStatus.value = AuthStatus.Onboarding
+                                fetchUserPreferences()
+                                fetchData()
+                            }
+                    }
                 }
             }
     }
@@ -108,24 +126,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun saveUserPrefs(driverId: String) {
         repository.saveUserPreferences(driverId) { success ->
             if (success) {
+                // 🏎️ Find the driver in the local list to get their nicely formatted full name
+                val matchingDriver = drivers.value.find { it.Driver.driverId == driverId }
+
+                if (matchingDriver != null) {
+                    favDriverName.value = "${matchingDriver.Driver.givenName} ${matchingDriver.Driver.familyName}"
+                } else {
+                    // Fallback formatting if standings aren't loaded yet
+                    favDriverName.value = driverId.split("_")
+                        .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
+                }
+
+                // Set status to logged in to dismiss any onboarding panels
                 authStatus.value = AuthStatus.LoggedIn
-                fetchUserPreferences()
-                fetchData()
             }
         }
     }
 
     private fun fetchUserPreferences() {
         val uid = auth.currentUser?.uid ?: return
+        android.util.Log.d("F1_HUB_DEBUG", "Fetching preferences for UID: $uid")
+
         db.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
-                val favId = doc.getString("favDriver")
-                val driver = drivers.value.find { it.Driver.driverId == favId }
-                favDriverName.value = if (driver != null) {
-                    "${driver.Driver.givenName} ${driver.Driver.familyName}"
+                if (doc.exists()) {
+                    val favId = doc.getString("favDriver")
+                    android.util.Log.d("F1_HUB_DEBUG", "Found favDriver token in DB: $favId")
+
+                    if (favId == null || favId == "none" || favId.isEmpty()) {
+                        favDriverName.value = "None Selected"
+                        return@addOnSuccessListener
+                    }
+
+                    val driver = drivers.value.find { it.Driver.driverId == favId }
+                    favDriverName.value = if (driver != null) {
+                        "${driver.Driver.givenName} ${driver.Driver.familyName}"
+                    } else {
+                        favId.split("_")
+                            .filter { it.isNotEmpty() }
+                            .joinToString(" ") { word -> word.lowercase().replaceFirstChar { it.uppercase() } }
+                    }
                 } else {
-                    favId?.replace("_", " ")?.replaceFirstChar { it.uppercase() } ?: "None Selected"
+                    android.util.Log.d("F1_HUB_DEBUG", "No Firestore document exists for this UID yet!")
+                    favDriverName.value = "None Selected"
                 }
+            }
+            .addOnFailureListener { e ->
+                android.util.Log.e("F1_HUB_DEBUG", "Firestore read failed completely", e)
+                favDriverName.value = "None Selected"
             }
     }
 
@@ -143,8 +191,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val standings = apiService.getDriverStandings(year)
-                // Updated to StandingsLists as per your F1ApiService
                 drivers.value = standings.MRData.StandingsTable.StandingsLists.firstOrNull()?.DriverStandings ?: emptyList()
+
+                // 🏎️ CRITICAL: Re-run this now that the drivers list actually has data to match against!
+                if (auth.currentUser != null) {
+                    fetchUserPreferences()
+                }
 
                 val constStandings = apiService.getConstructorStandings(year)
                 constructors.value = constStandings.MRData.StandingsTable.StandingsLists.firstOrNull()?.ConstructorStandings ?: emptyList()

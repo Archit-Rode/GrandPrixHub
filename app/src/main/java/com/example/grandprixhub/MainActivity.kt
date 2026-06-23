@@ -114,19 +114,98 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.background(Color(0xFF1F1F27)).width(240.dp)
                                             ) {
                                                 Column(modifier = Modifier.padding(16.dp)) {
-                                                    Text(viewModel.userName.value.uppercase(), color = Color.White, fontWeight = FontWeight.Black)
-                                                    Text(viewModel.userEmail.value, color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                                    // --- User Info Header ---
+                                                    Text(
+                                                        text = viewModel.userName.value.uppercase(),
+                                                        color = Color.White,
+                                                        fontWeight = FontWeight.Black
+                                                    )
+                                                    Text(
+                                                        text = viewModel.userEmail.value,
+                                                        color = Color.Gray,
+                                                        style = MaterialTheme.typography.bodySmall
+                                                    )
 
                                                     Spacer(modifier = Modifier.height(12.dp))
-                                                    Text("FAVORITE DRIVER", color = Color(0xFFE10600), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                                    Text(viewModel.favDriverName.value, color = Color.White, style = MaterialTheme.typography.bodyMedium)
 
-                                                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = Color.White.copy(alpha = 0.1f))
+                                                    // --- Favorite Driver Selection Section ---
+                                                    Text(
+                                                        text = "FAVORITE DRIVER",
+                                                        color = Color(0xFFE10600),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+
+                                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                                    // 🏎️ Fully Clickable Dropdown Menu Layout Block
+                                                    var expanded by remember { mutableStateOf(false) }
+                                                    val driverStandingsList by viewModel.drivers
+
+                                                    ExposedDropdownMenuBox(
+                                                        expanded = expanded,
+                                                        onExpandedChange = { expanded = it }
+                                                    ) {
+                                                        OutlinedTextField(
+                                                            value = viewModel.favDriverName.value,
+                                                            onValueChange = {},
+                                                            readOnly = true, // Locks user input so hardware keyboards don't push the panel layout
+                                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                                                            modifier = Modifier
+                                                                .menuAnchor()
+                                                                .fillMaxWidth(),
+                                                            colors = OutlinedTextFieldDefaults.colors(
+                                                                focusedTextColor = Color.White,
+                                                                unfocusedTextColor = Color.White,
+                                                                focusedContainerColor = Color.Transparent,
+                                                                unfocusedContainerColor = Color.Transparent,
+                                                                focusedTrailingIconColor = Color.White,
+                                                                unfocusedTrailingIconColor = Color.Gray,
+                                                                focusedBorderColor = Color(0xFFE10600),
+                                                                unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                                                            )
+                                                        )
+
+                                                        ExposedDropdownMenu(
+                                                            expanded = expanded,
+                                                            onDismissRequest = { expanded = false },
+                                                            modifier = Modifier.background(Color(0xFF1F1F24)) // Dark theme background matching
+                                                        ) {
+                                                            driverStandingsList.forEach { standing ->
+                                                                val driverFullName = "${standing.Driver.givenName} ${standing.Driver.familyName}"
+
+                                                                DropdownMenuItem(
+                                                                    text = { Text(driverFullName, color = Color.White) },
+                                                                    onClick = {
+                                                                        // 1. Instantly force the state string to update on the layout thread
+                                                                        viewModel.favDriverName.value = driverFullName
+                                                                        // 2. Shut the dropdown view block smoothly
+                                                                        expanded = false
+                                                                        // 3. Persist the change to Firebase Firestore
+                                                                        viewModel.saveUserPrefs(standing.Driver.driverId)
+                                                                    },
+                                                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding // Spans the touch surface to full row boundaries
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // --- Action Button Footer ---
+                                                    HorizontalDivider(
+                                                        modifier = Modifier.padding(vertical = 16.dp),
+                                                        color = Color.White.copy(alpha = 0.1f)
+                                                    )
+
                                                     Button(
-                                                        onClick = { showProfileMenu = false; viewModel.logout() },
+                                                        onClick = {
+                                                            showProfileMenu = false
+                                                            viewModel.logout()
+                                                        },
                                                         modifier = Modifier.fillMaxWidth(),
                                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE10600))
-                                                    ) { Text("LOGOUT", fontWeight = FontWeight.Bold) }
+                                                    ) {
+                                                        Text("LOGOUT", fontWeight = FontWeight.Bold)
+                                                    }
                                                 }
                                             }
                                         }
