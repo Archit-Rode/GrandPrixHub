@@ -47,6 +47,7 @@ import coil3.compose.AsyncImage
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.material.icons.filled.Home
 
 enum class TimeMode { MY_TIME, TRACK_TIME }
 enum class SessionStatus { PAST, LIVE, UPCOMING }
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: MainViewModel = viewModel()
             var selectedTeamId by remember { mutableStateOf<String?>(null) }
-            var currentBottomTab by remember { mutableStateOf("Results") }
+            var currentBottomTab by remember { mutableStateOf("Home") }
             var showAuthDialog by remember { mutableStateOf(false) }
             var showProfileMenu by remember { mutableStateOf(false) }
             val authStatus by viewModel.authStatus
@@ -88,7 +89,11 @@ class MainActivity : ComponentActivity() {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text("F1 GRAND PRIX HUB", fontWeight = FontWeight.ExtraBold, fontStyle = FontStyle.Italic)
                                         Text(
-                                            text = if (currentBottomTab == "Schedule") "${viewModel.selectedYear.value} CALENDAR" else "STANDINGS",
+                                            text = when (currentBottomTab) {
+                                                "Home" -> "HOME"
+                                                "Schedule" -> "${viewModel.selectedYear.value} CALENDAR"
+                                                else -> "STANDINGS"
+                                            },
                                             style = MaterialTheme.typography.labelMedium.copy(color = Color.Gray, fontWeight = FontWeight.Bold)
                                         )
                                     }
@@ -111,7 +116,9 @@ class MainActivity : ComponentActivity() {
                                             DropdownMenu(
                                                 expanded = showProfileMenu,
                                                 onDismissRequest = { showProfileMenu = false },
-                                                modifier = Modifier.background(Color(0xFF1F1F27)).width(240.dp)
+                                                modifier = Modifier
+                                                    .background(Color(0xFF1F1F27))
+                                                    .width(240.dp)
                                             ) {
                                                 Column(modifier = Modifier.padding(16.dp)) {
                                                     // --- User Info Header ---
@@ -232,6 +239,25 @@ class MainActivity : ComponentActivity() {
                 },
                 bottomBar = {
                     NavigationBar(containerColor = Color(0xFF1F1F27), contentColor = Color.White) {
+                        // 🏎️ Look for NavigationBar inside MainActivity.kt and append this item at the front!
+                        NavigationBarItem(
+                            selected = currentBottomTab == "Home",
+                            onClick = { currentBottomTab = "Home"; selectedTeamId = null; viewModel.clearSelectedRace() },
+                            label = { Text("Home", fontWeight = FontWeight.Bold) },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.Home,
+                                    contentDescription = "Home View"
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFFE10600),
+                                selectedTextColor = Color(0xFFE10600),
+                                unselectedIconColor = Color.Gray,
+                                unselectedTextColor = Color.Gray,
+                                indicatorColor = Color.Transparent
+                            )
+                        )
                         NavigationBarItem(
                             selected = currentBottomTab == "Schedule",
                             onClick = { currentBottomTab = "Schedule"; selectedTeamId = null; viewModel.clearSelectedRace(); viewModel.clearComparison() },
@@ -258,6 +284,7 @@ class MainActivity : ComponentActivity() {
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
                     when (currentBottomTab) {
+                        "Home" -> HomeScreen(viewModel)
                         "Schedule" -> if (viewModel.selectedRace.value == null) ScheduleScreen(viewModel) else RaceDetailScreen(viewModel)
                         "Results" -> if (selectedTeamId == null) {
                             if (viewModel.isDriversTab.value) DriverListScreen(viewModel) else ConstructorListScreen(viewModel) { selectedTeamId = it }
@@ -267,7 +294,9 @@ class MainActivity : ComponentActivity() {
 
                     if (showAuthDialog) {
                         Dialog(onDismissRequest = { showAuthDialog = false }) {
-                            Box(modifier = Modifier.fillMaxHeight(0.85f).clip(RoundedCornerShape(16.dp))) {
+                            Box(modifier = Modifier
+                                .fillMaxHeight(0.85f)
+                                .clip(RoundedCornerShape(16.dp))) {
                                 // 🏎️ Added the trailing lambda to listen for success!
                                 AuthScreen(viewModel) {
                                     showAuthDialog = false
@@ -348,7 +377,9 @@ fun ScheduleScreen(viewModel: MainViewModel) {
     } else {
         Column(modifier = Modifier.fillMaxSize()) {
             if (viewModel.countdownText.value.isNotEmpty()) {
-                Surface(modifier = Modifier.fillMaxWidth().padding(16.dp), color = Color(0xFFE10600), shape = RoundedCornerShape(8.dp)) {
+                Surface(modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp), color = Color(0xFFE10600), shape = RoundedCornerShape(8.dp)) {
                     Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("NEXT RACE COUNTDOWN", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
                         Text(viewModel.countdownText.value, color = Color.White, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic))
@@ -366,7 +397,10 @@ fun ScheduleScreen(viewModel: MainViewModel) {
 fun RaceCard(race: APIRace, onClick: () -> Unit) {
     val winner = race.Results?.firstOrNull()?.Driver
     val isSprint = race.Sprint != null || race.raceName.contains("China", true) || race.raceName.contains("Miami", true)
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { onClick() }, colors = CardDefaults.cardColors(containerColor = if (isSprint) Color(0xFF25252E) else Color(0xFF1F1F27)), shape = RoundedCornerShape(12.dp)) {
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 8.dp)
+        .clickable { onClick() }, colors = CardDefaults.cardColors(containerColor = if (isSprint) Color(0xFF25252E) else Color(0xFF1F1F27)), shape = RoundedCornerShape(12.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -401,7 +435,9 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
     LaunchedEffect(race.round) { viewModel.fetchWeather() }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize().background(Color(0xFF15151E))) {
+        Column(modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF15151E))) {
             TextButton(onClick = { viewModel.clearSelectedRace() }, modifier = Modifier.padding(8.dp)) { Text("< BACK TO CALENDAR", color = Color(0xFFE10600), fontWeight = FontWeight.Bold) }
             LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
                 item {
@@ -430,23 +466,55 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                                 sessionType.contains("Sprint Qualifying") -> "sprint_qualifying";sessionType.contains("Qualifying") -> "qualifying"; sessionType.contains("Sprint Race") -> "sprint"; else -> "results"
                             }
                             viewModel.fetchSessionResults(season, race.round, type)
+
+                            if (type == "fp1" || type == "fp2" || type == "fp3" || type == "sprint_qualifying") {
+                                viewModel.startLiveTiming(season, race.round, type)
+                            }
                         }
-                        race.FirstPractice?.let { Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Practice 1") }) { TimelineItem("Practice 1", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
+                        race.FirstPractice?.let { Box(modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSessionClick("Practice 1") }) { TimelineItem("Practice 1", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
                         if (race.Sprint != null) {
-                            race.SprintShootout?.let { Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Sprint Qualifying") }) { TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
-                            race.Sprint?.let { Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Sprint Race") }) { TimelineItem("Sprint Race", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
+                            race.SprintShootout?.let { Box(modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSessionClick("Sprint Qualifying") }) { TimelineItem("Sprint Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
+                            race.Sprint?.let { Box(modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSessionClick("Sprint Race") }) { TimelineItem("Sprint Race", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
                         } else {
-                            race.SecondPractice?.let { Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Practice 2") }) { TimelineItem("Practice 2", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
-                            race.ThirdPractice?.let { Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Practice 3") }) { TimelineItem("Practice 3", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
+                            race.SecondPractice?.let { Box(modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSessionClick("Practice 2") }) { TimelineItem("Practice 2", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
+                            race.ThirdPractice?.let { Box(modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSessionClick("Practice 3") }) { TimelineItem("Practice 3", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
                         }
-                        race.Qualifying?.let { Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Qualifying") }) { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
-                        Box(modifier = Modifier.fillMaxWidth().clickable { onSessionClick("Grand Prix") }) { TimelineItem("Grand Prix", formatSessionDate(race.date), formatToDisplayTime(race.date, race.time ?: "15:00:00Z", mode, country), true, getSessionStatus(race.date, race.time ?: "15:00:00Z")) }
+                        race.Qualifying?.let { Box(modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSessionClick("Qualifying") }) { TimelineItem("Qualifying", formatSessionDate(it.date), formatToDisplayTime(it.date, it.time, mode, country), false, getSessionStatus(it.date, it.time)) } }
+                        Box(modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSessionClick("Grand Prix") }) { TimelineItem("Grand Prix", formatSessionDate(race.date), formatToDisplayTime(race.date, race.time ?: "15:00:00Z", mode, country), true, getSessionStatus(race.date, race.time ?: "15:00:00Z")) }
                     }
                     Spacer(modifier = Modifier.height(40.dp))
                 }
             }
         }
-        if (viewModel.isShowingResults.value) { ModalBottomSheet(onDismissRequest = { viewModel.isShowingResults.value = false }, containerColor = Color(0xFF1C1C1C), dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }) { SessionResultsList(viewModel) } }
+        if (viewModel.isShowingResults.value) {
+            ModalBottomSheet(
+                onDismissRequest = {
+                    // 1. Dismiss the visibility of the overlay smoothly
+                    viewModel.isShowingResults.value = false
+
+                    // 2. 🏎️ STOP THE POLLING THREAD IMMEDIATELY ON SHEET DISMISSAL
+                    viewModel.stopLiveTiming()
+                },
+                containerColor = Color(0xFF1C1C1C),
+                dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }
+            ) {
+                SessionResultsList(viewModel)
+            }
+        }
     }
 }
 
@@ -467,7 +535,9 @@ fun ConstructorListScreen(viewModel: MainViewModel, onTeamClick: (String) -> Uni
 fun TeamDetailScreen(teamId: String, viewModel: MainViewModel, onBack: () -> Unit) {
     val teamDrivers = viewModel.getDriversForTeam(teamId)
     val teamColor = getTeamColor(teamId)
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF15151E))) {
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .background(Color(0xFF15151E))) {
         CenterAlignedTopAppBar(title = { Text(teamId.replace("_", " ").uppercase(), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) }, navigationIcon = { TextButton(onClick = onBack) { Text("< BACK", color = teamColor, fontWeight = FontWeight.Bold) } }, colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color(0xFF15151E), titleContentColor = Color.White))
         LazyColumn(contentPadding = PaddingValues(16.dp)) { items(teamDrivers) { standing -> DriverDetailCard(standing, teamColor) } }
     }
@@ -476,9 +546,16 @@ fun TeamDetailScreen(teamId: String, viewModel: MainViewModel, onBack: () -> Uni
 @Composable
 fun DriverCard(standing: DriverStanding) {
     val driver = standing.Driver; val teamId = standing.Constructors?.lastOrNull()?.constructorId; val teamColor = getTeamColor(teamId)
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), shape = RoundedCornerShape(topStart = 0.dp, bottomEnd = 12.dp), border = BorderStroke(1.dp, Color(0xFF38383F))) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = standing.position ?: "NR", color = Color.White, modifier = Modifier.width(24.dp), fontWeight = FontWeight.Bold); Spacer(modifier = Modifier.width(8.dp)); Box(modifier = Modifier.width(4.dp).height(45.dp).background(teamColor)); Spacer(modifier = Modifier.width(16.dp))
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 6.dp, horizontal = 12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), shape = RoundedCornerShape(topStart = 0.dp, bottomEnd = 12.dp), border = BorderStroke(1.dp, Color(0xFF38383F))) {
+        Row(modifier = Modifier
+            .padding(16.dp)
+            .fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = standing.position ?: "NR", color = Color.White, modifier = Modifier.width(24.dp), fontWeight = FontWeight.Bold); Spacer(modifier = Modifier.width(8.dp)); Box(modifier = Modifier
+            .width(4.dp)
+            .height(45.dp)
+            .background(teamColor)); Spacer(modifier = Modifier.width(16.dp))
             Column { Text(text = driver.familyName.uppercase(), color = Color.White, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic)); Text(text = driver.givenName, color = Color.LightGray) }; Spacer(modifier = Modifier.weight(1f))
             Surface(color = Color.White.copy(alpha = 0.05f), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))) { Text(text = "${standing.points ?: "0"} PTS", color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Bold) }
             Spacer(modifier = Modifier.width(12.dp)); Text(text = driver.permanentNumber ?: "--", color = Color.White.copy(alpha = 0.07f), style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold))
@@ -493,11 +570,21 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
     val chartColor1 = Color(0xFFE10600); val chartColor2 = Color(0xFF64C4FF)
     val scrollState = rememberScrollState()
     LaunchedEffect(d1.Driver.driverId, d2.Driver.driverId) { viewModel.loadDriverStats(d1.Driver.driverId, true); viewModel.loadDriverStats(d2.Driver.driverId, false) }
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF15151E)).verticalScroll(scrollState).padding(16.dp)) {
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .background(Color(0xFF15151E))
+        .verticalScroll(scrollState)
+        .padding(16.dp)) {
         TextButton(onClick = { viewModel.clearComparison() }) { Text("< BACK TO STANDINGS", color = Color(0xFFE10600), fontWeight = FontWeight.Bold) }
-        Text(text = "${viewModel.selectedYear.value} SEASON COMPARISON", color = Color.White, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black))
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) { ComparisonLegendItem(d1.Driver.familyName, chartColor1); Text(" VS ", color = Color.Gray, modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelSmall); ComparisonLegendItem(d2.Driver.familyName, chartColor2) }
-        Spacer(modifier = Modifier.height(8.dp)); Box(modifier = Modifier.fillMaxWidth().height(320.dp), contentAlignment = Alignment.Center) { ComparisonRadar(driver1Name = d1.Driver.familyName, driver2Name = d2.Driver.familyName, driver1Scores = d1DNA, driver2Scores = d2DNA) }
+        Text(text = "${viewModel.selectedYear.value} SEASON COMPARISON", color = Color.White, modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black))
+        Row(modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) { ComparisonLegendItem(d1.Driver.familyName, chartColor1); Text(" VS ", color = Color.Gray, modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelSmall); ComparisonLegendItem(d2.Driver.familyName, chartColor2) }
+        Spacer(modifier = Modifier.height(8.dp)); Box(modifier = Modifier
+        .fillMaxWidth()
+        .height(320.dp), contentAlignment = Alignment.Center) { ComparisonRadar(driver1Name = d1.Driver.familyName, driver2Name = d2.Driver.familyName, driver1Scores = d1DNA, driver2Scores = d2DNA) }
         if (d1DNA.isNotEmpty() && d2DNA.isNotEmpty()) { DriverInsightCard(d1Name = d1.Driver.familyName, d2Name = d2.Driver.familyName, d1Scores = d1DNA, d2Scores = d2DNA) }
         Spacer(modifier = Modifier.height(16.dp)); Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { DriverImage(d1.Driver.driverId); Spacer(modifier = Modifier.height(8.dp)); Text(d1.Driver.familyName.uppercase(), color = chartColor1, fontWeight = FontWeight.Black); Spacer(modifier = Modifier.height(8.dp)); StatBox("POINTS", d1.points ?: "0"); StatBox("WINS", d1.wins ?: "0"); StatBox("RANK", if (d1.position != null) "#${d1.position}" else "NR") }
@@ -510,15 +597,26 @@ fun DriverComparisonScreen(viewModel: MainViewModel) {
 
 @Composable
 fun ComparisonLegendItem(name: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier.size(10.dp).background(color, CircleShape)); Spacer(modifier = Modifier.width(6.dp)); Text(text = name.uppercase(), color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold) }
+    Row(verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier
+        .size(10.dp)
+        .background(color, CircleShape)); Spacer(modifier = Modifier.width(6.dp)); Text(text = name.uppercase(), color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold) }
 }
 
 @Composable
 fun TimelineItem(sessionName: String, date: String, time: String, isLast: Boolean, status: SessionStatus) {
-    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+    Row(modifier = Modifier
+        .fillMaxWidth()
+        .height(IntrinsicSize.Min)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(32.dp)) {
-            when (status) { SessionStatus.PAST -> Text("🏁", fontSize = 14.sp); SessionStatus.LIVE -> Box(modifier = Modifier.size(12.dp).background(Color.Green, CircleShape)); else -> Box(modifier = Modifier.size(12.dp).background(Color(0xFFE10600), CircleShape)) }
-            if (!isLast) Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(Color.Gray.copy(alpha = 0.3f)))
+            when (status) { SessionStatus.PAST -> Text("🏁", fontSize = 14.sp); SessionStatus.LIVE -> Box(modifier = Modifier
+                .size(12.dp)
+                .background(Color.Green, CircleShape)); else -> Box(modifier = Modifier
+                .size(12.dp)
+                .background(Color(0xFFE10600), CircleShape)) }
+            if (!isLast) Box(modifier = Modifier
+                .width(2.dp)
+                .fillMaxHeight()
+                .background(Color.Gray.copy(alpha = 0.3f)))
         }
         Column(modifier = Modifier.padding(start = 12.dp, bottom = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) { Text(sessionName, color = Color.White, fontWeight = FontWeight.Bold); if (status == SessionStatus.LIVE) { Spacer(modifier = Modifier.width(8.dp)); Text("LIVE", color = Color.Green, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall) } }
@@ -540,9 +638,13 @@ fun DetailInfo(label: String, value: String) {
 @Composable
 fun DriverDetailCard(standing: DriverStanding, teamColor: Color) {
     val driver = standing.Driver; val cleanId = if (driver.driverId.contains("colapinto")) "franco-colapinto" else driver.driverId.split("_").last(); val imageUrl = "https://media.formula1.com/content/dam/fom-website/drivers/2025Drivers/${cleanId}.png"
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), border = BorderStroke(1.dp, teamColor.copy(alpha = 0.3f))) {
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), border = BorderStroke(1.dp, teamColor.copy(alpha = 0.3f))) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
-            AsyncImage(model = imageUrl, contentDescription = null, modifier = Modifier.size(100.dp).background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp)), contentScale = ContentScale.Fit, error = painterResource(android.R.drawable.ic_menu_gallery)); Spacer(modifier = Modifier.width(16.dp))
+            AsyncImage(model = imageUrl, contentDescription = null, modifier = Modifier
+                .size(100.dp)
+                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp)), contentScale = ContentScale.Fit, error = painterResource(android.R.drawable.ic_menu_gallery)); Spacer(modifier = Modifier.width(16.dp))
             Column { Text(driver.familyName.uppercase(), color = Color.White, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)); Text(driver.givenName, color = Color.LightGray); Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) { Text("NO. ${driver.permanentNumber ?: "--"}", color = teamColor, fontWeight = FontWeight.Bold); Spacer(modifier = Modifier.width(12.dp)); Text("RANK ${standing.position ?: "NR"}", color = Color.Gray, fontSize = 12.sp) } }
             Spacer(modifier = Modifier.weight(1f)); Text(text = standing.points ?: "0", color = Color.White, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Black))
         }
@@ -555,7 +657,10 @@ fun SeasonDropdown(viewModel: MainViewModel) {
     var expanded by remember { mutableStateOf(false) }
     val seasons = listOf("2024", "2025", "2026")
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-        Text(text = viewModel.selectedYear.value, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.menuAnchor().padding(16.dp).clickable { expanded = true })
+        Text(text = viewModel.selectedYear.value, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier
+            .menuAnchor()
+            .padding(16.dp)
+            .clickable { expanded = true })
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(Color(0xFF1F1F27))) { seasons.forEach { year -> DropdownMenuItem(text = { Text(year, color = Color.White) }, onClick = { viewModel.updateYear(year); expanded = false }) } }
     }
 }
@@ -563,9 +668,17 @@ fun SeasonDropdown(viewModel: MainViewModel) {
 @Composable
 fun ConstructorCard(standing: ConstructorStanding, onTeamClick: (String) -> Unit) {
     val team = standing.Constructor; val teamId = team.constructorId; val teamColor = getTeamColor(teamId)
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 12.dp).clickable { onTeamClick(teamId) }, colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), shape = RoundedCornerShape(topStart = 0.dp, bottomEnd = 12.dp), border = BorderStroke(1.dp, Color(0xFF38383F))) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = standing.position ?: "NR", color = Color.White, modifier = Modifier.width(28.dp), fontWeight = FontWeight.Bold); Spacer(modifier = Modifier.width(8.dp)); Box(modifier = Modifier.width(4.dp).height(40.dp).background(teamColor)); Spacer(modifier = Modifier.width(16.dp))
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 6.dp, horizontal = 12.dp)
+        .clickable { onTeamClick(teamId) }, colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), shape = RoundedCornerShape(topStart = 0.dp, bottomEnd = 12.dp), border = BorderStroke(1.dp, Color(0xFF38383F))) {
+        Row(modifier = Modifier
+            .padding(16.dp)
+            .fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = standing.position ?: "NR", color = Color.White, modifier = Modifier.width(28.dp), fontWeight = FontWeight.Bold); Spacer(modifier = Modifier.width(8.dp)); Box(modifier = Modifier
+            .width(4.dp)
+            .height(40.dp)
+            .background(teamColor)); Spacer(modifier = Modifier.width(16.dp))
             Column { Text(text = (team.name ?: "UNKNOWN TEAM").uppercase(), color = Color.White, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic)); Text(text = team.nationality ?: "International", color = teamColor, style = MaterialTheme.typography.bodyMedium) }; Spacer(modifier = Modifier.weight(1f)); Text(text = "${standing.points ?: "0"} PTS", color = Color.White, fontWeight = FontWeight.ExtraBold); Spacer(modifier = Modifier.width(12.dp)); Text(text = ">", color = Color.Gray)
         }
     }
@@ -581,8 +694,13 @@ fun getSessionStatus(apiDate: String, apiTime: String): SessionStatus {
 @Composable
 fun ComparisonSelectionScreen(viewModel: MainViewModel) {
     val allDrivers = viewModel.drivers.value
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("SELECT TWO DRIVERS", color = Color.White, fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineSmall); Text("Tap drivers to add to comparison", color = Color.Gray, style = MaterialTheme.typography.bodySmall); Spacer(modifier = Modifier.height(16.dp)); Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { SelectionSlot("Driver 1", viewModel.selectedDriver1, modifier = Modifier.weight(1f)); SelectionSlot("Driver 2", viewModel.selectedDriver2, modifier = Modifier.weight(1f)) }; Spacer(modifier = Modifier.height(16.dp)); LazyColumn(modifier = Modifier.weight(1f)) { items(allDrivers) { standing -> val isSelected = viewModel.selectedDriver1 == standing || viewModel.selectedDriver2 == standing; Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { viewModel.selectDriverForComparison(standing) }, colors = CardDefaults.cardColors(containerColor = if (isSelected) Color(0xFFE10600).copy(alpha = 0.2f) else Color(0xFF1F1F27)), border = if (isSelected) BorderStroke(1.dp, Color(0xFFE10600)) else null) { Text(text = "${standing.Driver.givenName} ${standing.Driver.familyName.uppercase()}", modifier = Modifier.padding(16.dp), color = Color.White, fontWeight = FontWeight.Bold) } } }
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .padding(16.dp)) {
+        Text("SELECT TWO DRIVERS", color = Color.White, fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineSmall); Text("Tap drivers to add to comparison", color = Color.Gray, style = MaterialTheme.typography.bodySmall); Spacer(modifier = Modifier.height(16.dp)); Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { SelectionSlot("Driver 1", viewModel.selectedDriver1, modifier = Modifier.weight(1f)); SelectionSlot("Driver 2", viewModel.selectedDriver2, modifier = Modifier.weight(1f)) }; Spacer(modifier = Modifier.height(16.dp)); LazyColumn(modifier = Modifier.weight(1f)) { items(allDrivers) { standing -> val isSelected = viewModel.selectedDriver1 == standing || viewModel.selectedDriver2 == standing; Card(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 4.dp)
+        .clickable { viewModel.selectDriverForComparison(standing) }, colors = CardDefaults.cardColors(containerColor = if (isSelected) Color(0xFFE10600).copy(alpha = 0.2f) else Color(0xFF1F1F27)), border = if (isSelected) BorderStroke(1.dp, Color(0xFFE10600)) else null) { Text(text = "${standing.Driver.givenName} ${standing.Driver.familyName.uppercase()}", modifier = Modifier.padding(16.dp), color = Color.White, fontWeight = FontWeight.Bold) } } }
     }
 }
 
@@ -594,14 +712,20 @@ fun SelectionSlot(label: String, driver: DriverStanding?, modifier: Modifier = M
 @Composable
 fun DriverImage(driverId: String) {
     val cleanId = if (driverId.contains("colapinto")) "franco-colapinto" else driverId.split("_").last(); val imageUrl = "https://media.formula1.com/content/dam/fom-website/drivers/2025Drivers/${cleanId}.png"
-    AsyncImage(model = imageUrl, contentDescription = null, modifier = Modifier.size(120.dp).background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp)), contentScale = ContentScale.Fit, error = painterResource(android.R.drawable.ic_menu_gallery))
+    AsyncImage(model = imageUrl, contentDescription = null, modifier = Modifier
+        .size(120.dp)
+        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp)), contentScale = ContentScale.Fit, error = painterResource(android.R.drawable.ic_menu_gallery))
 }
 
 @Composable
 fun WeatherWidget(weather: APIWeather?) {
     if (weather == null) return
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))) {
+        Row(modifier = Modifier
+            .padding(16.dp)
+            .fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column { Text("TRACK CONDITIONS", color = Color.Gray, style = MaterialTheme.typography.labelSmall); Row(verticalAlignment = Alignment.CenterVertically) { Text(text = if (weather.rainfall == 1) "🌧️ WET" else "☀️ DRY", color = if (weather.rainfall == 1) Color(0xFF64C4FF) else Color(0xFFFFD700), fontWeight = FontWeight.Bold) } }
             WeatherStat("AIR", "${weather.air_temperature}°C"); WeatherStat("TRACK", "${weather.track_temperature}°C"); WeatherStat("HUMIDITY", "${weather.humidity}%")
         }
@@ -618,7 +742,9 @@ fun DriverInsightCard(d1Name: String, d2Name: String, d1Scores: Map<String, Floa
     val d1Archetype = getDriverArchetype(d1Scores); val d2Archetype = getDriverArchetype(d2Scores); val pillars = listOf("Qualy Pace", "Race Craft", "Peak Performance"); val biggestGapPillar = pillars.maxByOrNull { kotlin.math.abs((d1Scores[it] ?: 0f) - (d2Scores[it] ?: 0f)) } ?: "Qualy Pace"
     val d1Val = d1Scores[biggestGapPillar] ?: 0f; val d2Val = d2Scores[biggestGapPillar] ?: 0f; val leaderName = if (d1Val > d2Val) d1Name else d2Name; val trailingName = if (d1Val > d2Val) d2Name else d1Name; val delta = kotlin.math.abs(d1Val - d2Val); val intensity = when { delta > 2.5f -> "dominates"; delta > 1.0f -> "outperforms"; else -> "marginally leads" }
     val annotatedAnalysis = buildAnnotatedString { append("$d1Name ("); withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFFE10600))) { append(d1Archetype) }; append(") and $d2Name ("); withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF64C4FF))) { append(d2Archetype) }; append(") show contrasting styles. The primary battleground is "); withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) { append(biggestGapPillar) }; append(", where $leaderName $intensity $trailingName. "); append(when(biggestGapPillar) { "Qualy Pace" -> "This suggests $leaderName is the favorite to dictate the tempo from the front on Saturday."; "Race Craft" -> "Expect $leaderName to be the more clinical overtaker, making them a threat regardless of grid position."; "Peak Performance" -> "In high-pressure scenarios, $leaderName has shown a superior ability to convert opportunities into podiums."; else -> "" }) }
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFF38383F))) {
+    Card(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFF38383F))) {
         Column(modifier = Modifier.padding(16.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(android.R.drawable.ic_dialog_info), null, tint = Color(0xFFE10600), modifier = Modifier.size(16.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("STRATEGIC ANALYSIS", color = Color(0xFFE10600), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black) }; Spacer(modifier = Modifier.height(12.dp)); Text(text = annotatedAnalysis, color = Color.White, style = MaterialTheme.typography.bodyMedium, lineHeight = 22.sp) }
     }
 }
@@ -632,7 +758,21 @@ private fun getDriverArchetype(scores: Map<String, Float>): String {
 fun HighlightThumbnailPlayer(videoId: String, thumbnailUrl: String) {
     val context = LocalContext.current
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).clickable { val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoId")); val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId")); try { context.startActivity(appIntent) } catch (ex: Exception) { context.startActivity(webIntent) } }, contentAlignment = Alignment.Center) { AsyncImage(model = thumbnailUrl, contentDescription = "F1 Highlights Thumbnail", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop); Surface(color = Color.Black.copy(alpha = 0.5f), shape = RoundedCornerShape(50), modifier = Modifier.size(64.dp)) { Icon(painterResource(android.R.drawable.ic_media_play), "Play Video", tint = Color.White, modifier = Modifier.padding(16.dp)) } }
+        Box(modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable {
+                val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoId"));
+                val webIntent = Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://www.youtube.com/watch?v=$videoId")
+                ); try {
+                context.startActivity(appIntent)
+            } catch (ex: Exception) {
+                context.startActivity(webIntent)
+            }
+            }, contentAlignment = Alignment.Center) { AsyncImage(model = thumbnailUrl, contentDescription = "F1 Highlights Thumbnail", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop); Surface(color = Color.Black.copy(alpha = 0.5f), shape = RoundedCornerShape(50), modifier = Modifier.size(64.dp)) { Icon(painterResource(android.R.drawable.ic_media_play), "Play Video", tint = Color.White, modifier = Modifier.padding(16.dp)) } }
         Spacer(modifier = Modifier.height(12.dp)); Text(text = "TAP TO WATCH OFFICIAL HIGHLIGHTS", color = Color(0xFFE10600), style = MaterialTheme.typography.labelSmall)
     }
 }
@@ -641,13 +781,25 @@ fun HighlightThumbnailPlayer(videoId: String, thumbnailUrl: String) {
 fun SessionResultsList(viewModel: MainViewModel) {
     var selectedTab by remember { mutableStateOf("RESULTS") }; val race = viewModel.selectedRace.value; val session = viewModel.selectedSessionType.value
     LaunchedEffect(selectedTab) { if (selectedTab == "HIGHLIGHTS" && race != null) { viewModel.fetchLiveHighlight(race.raceName, session) } }
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { listOf("RESULTS", "HIGHLIGHTS").forEach { tab -> val isSelected = selectedTab == tab; Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp).clickable { selectedTab = tab }) { Text(text = tab, color = if (isSelected) Color(0xFFE10600) else Color.Gray, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge); if (isSelected) { Box(modifier = Modifier.padding(top = 4.dp).width(20.dp).height(2.dp).background(Color(0xFFE10600))) } } } }
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { listOf("RESULTS", "HIGHLIGHTS").forEach { tab -> val isSelected = selectedTab == tab; Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier
+            .padding(horizontal = 24.dp)
+            .clickable { selectedTab = tab }) { Text(text = tab, color = if (isSelected) Color(0xFFE10600) else Color.Gray, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge); if (isSelected) { Box(modifier = Modifier
+            .padding(top = 4.dp)
+            .width(20.dp)
+            .height(2.dp)
+            .background(Color(0xFFE10600))) } } } }
         Spacer(modifier = Modifier.height(24.dp))
         if (selectedTab == "RESULTS") {
-            val results = viewModel.selectedSessionResults.value; if (results.isEmpty()) { Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { Text("No results data available yet.", color = Color.Gray) } } else { LazyColumn(modifier = Modifier.fillMaxHeight(0.8f)) { items(results) { result -> SessionResultRow(result); HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp)) } } }
+            val results = viewModel.selectedSessionResults.value; if (results.isEmpty()) { Box(modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp), contentAlignment = Alignment.Center) { Text("No results data available yet.", color = Color.Gray) } } else { LazyColumn(modifier = Modifier.fillMaxHeight(0.8f)) { items(results) { result -> SessionResultRow(result); HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp)) } } }
         } else {
-            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { if (viewModel.selectedVideoId.value.isNotEmpty()) { HighlightThumbnailPlayer(videoId = viewModel.selectedVideoId.value, thumbnailUrl = viewModel.selectedThumbnailUrl.value); Spacer(modifier = Modifier.height(16.dp)); Text(text = "OFFICIAL ${session.uppercase()} HIGHLIGHTS", color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) } else { Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFFE10600)) } }; Spacer(modifier = Modifier.height(40.dp)) }
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { if (viewModel.selectedVideoId.value.isNotEmpty()) { HighlightThumbnailPlayer(videoId = viewModel.selectedVideoId.value, thumbnailUrl = viewModel.selectedThumbnailUrl.value); Spacer(modifier = Modifier.height(16.dp)); Text(text = "OFFICIAL ${session.uppercase()} HIGHLIGHTS", color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) } else { Box(modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFFE10600)) } }; Spacer(modifier = Modifier.height(40.dp)) }
         }
     }
 }
@@ -661,9 +813,132 @@ fun SessionResultRow(result: Any) {
         is PracticeResultDisplay -> { name = result.driverName.uppercase(); pos = result.position.toString(); val driverStanding = viewModel<MainViewModel>().drivers.value.find { it.Driver.permanentNumber == result.driverNumber }; teamColor = getTeamColor(driverStanding?.Constructors?.lastOrNull()?.constructorId); detail = result.bestLapTime; subDetail = result.gap }
         else -> return
     }
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) { Text(text = pos, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp)); Box(modifier = Modifier.width(4.dp).height(24.dp).background(teamColor)); Spacer(modifier = Modifier.width(12.dp)); Column(modifier = Modifier.weight(1f)) { Text(text = name, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1); if (subDetail != null) { Text(text = subDetail, color = Color.Gray, style = MaterialTheme.typography.labelSmall) } }; Text(text = detail, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) }
+    Row(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) { Text(text = pos, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp)); Box(modifier = Modifier
+        .width(4.dp)
+        .height(24.dp)
+        .background(teamColor)); Spacer(modifier = Modifier.width(12.dp)); Column(modifier = Modifier.weight(1f)) { Text(text = name, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1); if (subDetail != null) { Text(text = subDetail, color = Color.Gray, style = MaterialTheme.typography.labelSmall) } }; Text(text = detail, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) }
 }
 
 fun getTeamColor(id: String?): Color = when (id?.lowercase()) {
     "red_bull" -> Color(0xFF3671C6); "mercedes" -> Color(0xFF27F4D2); "ferrari" -> Color(0xFFE80020); "mclaren" -> Color(0xFFFF8000); "aston_martin" -> Color(0xFF229971); "alpine" -> Color(0xFF0093CC); "williams" -> Color(0xFF64C4FF); "rb", "racing_bulls" -> Color(0xFF6692FF); "sauber", "kick_sauber" -> Color(0xFF52E252); "audi" -> Color(0xFFB1B3B3); "haas" -> Color(0xFFFFFFFF); "cadillac" -> Color(0xFFD4AF37); else -> Color(0xFFE10600)
+}
+@Composable
+fun HomeScreen(viewModel: MainViewModel) {
+    val newsArticles by viewModel.f1News
+    val isLoading by viewModel.isNewsLoading
+    val context = LocalContext.current
+
+    // Automatically poll the countdown refresh state on page mount
+    LaunchedEffect(Unit) {
+        viewModel.updateCountdown()
+        viewModel.fetchF1News()
+    }
+
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .background(Color(0xFF15151E))) {
+        // 🏁 HERO OVERVIEW TIMER (Always Fixed at Top)
+        if (viewModel.countdownText.value.isNotEmpty()) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                color = Color(0xFFE10600),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("NEXT RACE COUNTDOWN", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = viewModel.countdownText.value,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic)
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = "LATEST HEADLINES",
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        // 📰 NEWS ARTICLES LAYOUT COLUMN
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFFE10600))
+            }
+        } else if (newsArticles.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No news updates available right now.", color = Color.Gray)
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(newsArticles) { article ->
+                    NewsCard(article = article) {
+                        val webUrl = article.links?.web?.href
+                        if (!webUrl.isNullOrEmpty()) {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl))
+                            context.startActivity(intent)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NewsCard(article: EspnArticle, onClick: () -> Unit) {
+    val imageUrl = article.images?.firstOrNull()?.url
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1F27)),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color(0xFF38383F))
+    ) {
+        Column {
+            if (!imageUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "News Image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = article.headline,
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (!article.description.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = article.description,
+                        color = Color.LightGray,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 3
+                    )
+                }
+            }
+        }
+    }
 }

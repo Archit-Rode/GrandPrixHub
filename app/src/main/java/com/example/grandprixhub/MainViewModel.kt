@@ -13,16 +13,18 @@ import java.time.LocalDateTime
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneId
 import androidx.compose.foundation.lazy.LazyListState
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.userProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-// --- REQUIRED ENUMS ---
+// --- REQUIRED ENUMS (UNCOMMENTED FOR BUILD FIX) ---
 enum class AuthStatus { LoggedOut, Onboarding, LoggedIn }
 //enum class TimeMode { MY_TIME, TRACK_TIME }
-//enum class SessionStatus { PAST, LIVE, UPCOMING }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -59,6 +61,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isShowingResults = mutableStateOf(false)
     val selectedThumbnailUrl = mutableStateOf("")
     val selectedVideoId = mutableStateOf("")
+
+    val f1News = mutableStateOf<List<EspnArticle>>(emptyList())
+    val isNewsLoading = mutableStateOf(false)
+
+    private val espnApiService = Retrofit.Builder()
+        .baseUrl("https://site.api.espn.com/")
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(EspnApiService::class.java)
+
+    private var liveTimingJob: Job? = null
+    val isPollingLiveTiming = mutableStateOf(false)
 
     private val YOUTUBE_API_KEY = BuildConfig.YOUTUBE_API_KEY
 
@@ -107,7 +121,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             "favDriver" to "none"
                         )
 
-                        // 🏎️ ROOT LEVEL WRITE: Targets db -> users -> [uid_document] directly
                         db.collection("users")
                             .document(uid)
                             .set(initialUserData)
@@ -126,18 +139,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun saveUserPrefs(driverId: String) {
         repository.saveUserPreferences(driverId) { success ->
             if (success) {
-                // 🏎️ Find the driver in the local list to get their nicely formatted full name
                 val matchingDriver = drivers.value.find { it.Driver.driverId == driverId }
 
                 if (matchingDriver != null) {
                     favDriverName.value = "${matchingDriver.Driver.givenName} ${matchingDriver.Driver.familyName}"
                 } else {
-                    // Fallback formatting if standings aren't loaded yet
                     favDriverName.value = driverId.split("_")
                         .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
                 }
-
-                // Set status to logged in to dismiss any onboarding panels
                 authStatus.value = AuthStatus.LoggedIn
             }
         }
@@ -193,7 +202,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val standings = apiService.getDriverStandings(year)
                 drivers.value = standings.MRData.StandingsTable.StandingsLists.firstOrNull()?.DriverStandings ?: emptyList()
 
-                // 🏎️ CRITICAL: Re-run this now that the drivers list actually has data to match against!
                 if (auth.currentUser != null) {
                     fetchUserPreferences()
                 }
@@ -213,7 +221,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val scheduleResponse = apiService.getSeasonSchedule(year)
                 val fullCalendar = scheduleResponse.MRData.RaceTable.Races
 
-                // Fetching results to merge
                 val resultsList = try { apiService.getSeasonResults(year).MRData.RaceTable.Races } catch (e: Exception) { emptyList() }
 
                 val mergedList = fullCalendar.map { calendarRace ->
@@ -296,7 +303,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             val sessions = apiService.getOpenF1Sessions(
                                 year = year.toInt(),
                                 circuitName = openF1CircuitName,
-                                sessionName = "Sprint Qualifying" // OpenF1's official term for the Shootout
+                                sessionName = "Sprint Qualifying"
                             )
 
                             val sessionKey = sessions.lastOrNull()?.sessionKey ?: run {
@@ -308,7 +315,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                             val allLaps = apiService.getOpenF1Laps(sessionKey = sessionKey)
 
-                            // 🏎️ Use the exact operational math from your practice pipeline to calculate INTERVAL and gaps
                             val results = allLaps.filter { it.lapDuration != null && !it.isPitOutLap }
                                 .groupBy { it.driverNumber }
                                 .map { (_, laps) -> laps.minByOrNull { it.lapDuration!! }!! }
@@ -331,8 +337,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         selectedSessionType.value = "SPRINT QUALIFYING"
                         isShowingResults.value = true
                     }
-
-                    // 🏎️ FIXED: Handle Sprint Race Results
                     "sprint" -> {
                         val response = apiService.getSprintResults(year, round)
                         selectedSessionResults.value = response.MRData.RaceTable.Races.firstOrNull()?.SprintResults ?: emptyList()
@@ -355,11 +359,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) { isShowingResults.value = false }
         }
     }
+
     private fun formatLapTime(totalSeconds: Double): String {
         val minutes = (totalSeconds / 60).toInt()
         val seconds = totalSeconds % 60
         return String.format("%d:%06.3f", minutes, seconds)
     }
+
     private fun fetchPracticeResults(year: String, circuitId: String, sessionName: String) {
         viewModelScope.launch {
             try {
@@ -370,11 +376,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     sessionName = sessionName
                 )
 
-                // --- FIX: Don't just return. Open the sheet with empty results ---
                 val sessionKey = sessions.lastOrNull()?.sessionKey ?: run {
                     selectedSessionResults.value = emptyList()
                     selectedSessionType.value = sessionName.uppercase()
-                    isShowingResults.value = true // This forces the UI to react
+                    isShowingResults.value = true
                     return@launch
                 }
 
@@ -399,7 +404,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 selectedSessionType.value = sessionName.uppercase()
                 isShowingResults.value = true
             } catch (e: Exception) {
-                // Even on error, you might want to show an empty state so the UI doesn't "hang"
                 isShowingResults.value = false
             }
         }
@@ -409,14 +413,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val cleanRaceName = raceName.replace("Grand Prix", "", ignoreCase = true).trim()
-
-                // 🏎️ Force "F1" inside the strict quote brackets so YouTube MUST filter out F2/F3 content
                 val query = "\"F1 ${sessionName.uppercase()} Highlights\" \"${selectedYear.value} $cleanRaceName\""
 
                 val response = youtubeApi.searchVideos(
                     query = query,
                     apiKey = YOUTUBE_API_KEY,
-                    channelId = "UCB_qr75-ydFVKSF9Dmo6izg", // Keeps it bound to the official channel
+                    channelId = "UCB_qr75-ydFVKSF9Dmo6izg",
                     order = "relevance"
                 )
 
@@ -425,6 +427,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 selectedThumbnailUrl.value = item?.snippet?.thumbnails?.high?.url ?: ""
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+        }
+    }
+
+    fun fetchF1News() {
+        // If we are already loading news, do not spin up another duplicate network request thread!
+        if (isNewsLoading.value) return
+
+        viewModelScope.launch {
+            isNewsLoading.value = true
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    espnApiService.getLatestF1News()
+                }
+                // Safely map the incoming data array
+                f1News.value = response.articles ?: emptyList()
+            } catch (e: Exception) {
+                android.util.Log.e("F1_HUB_NEWS_ERR", "ESPN request interrupted safely", e)
+            } finally {
+                // This is guaranteed to run, preventing the app from getting stuck in a loading lock state
+                isNewsLoading.value = false
             }
         }
     }
@@ -438,6 +461,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (isDriverOne) driver1DNA.value = scores else driver2DNA.value = scores
             } catch (e: Exception) { }
         }
+    }
+
+    fun startLiveTiming(year: String, round: String, type: String) {
+        if (liveTimingJob?.isActive == true) return
+
+        isPollingLiveTiming.value = true
+        liveTimingJob = viewModelScope.launch {
+            while (isPollingLiveTiming.value) {
+                fetchSessionResults(year, round, type)
+                delay(12000)
+            }
+        }
+    }
+
+    fun stopLiveTiming() {
+        isPollingLiveTiming.value = false
+        liveTimingJob?.cancel()
+        liveTimingJob = null
     }
 
     private fun calculateRadarMetrics(results: List<RaceResult>): Map<String, Float> {
@@ -477,5 +518,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         "losail" -> "Lusail"
         "yas_marina" -> "Abu Dhabi"
         else -> ergastId.replace("_", " ").replaceFirstChar { it.uppercase() }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopLiveTiming()
     }
 }
