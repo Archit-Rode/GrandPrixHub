@@ -22,9 +22,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// --- REQUIRED ENUMS (UNCOMMENTED FOR BUILD FIX) ---
 enum class AuthStatus { LoggedOut, Onboarding, LoggedIn }
-//enum class TimeMode { MY_TIME, TRACK_TIME }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -235,6 +233,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateYear(newYear: String) {
         selectedYear.value = newYear
+        schedule.value = emptyList()
+        drivers.value = emptyList()
+        constructors.value = emptyList()
         fetchData()
     }
 
@@ -363,18 +364,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun formatLapTime(totalSeconds: Double): String {
         val minutes = (totalSeconds / 60).toInt()
         val seconds = totalSeconds % 60
-        return String.format("%d:%06.3f", minutes, seconds)
+        return String.format(java.util.Locale.ENGLISH, "%d:%06.3f", minutes, seconds)
     }
 
     private fun fetchPracticeResults(year: String, circuitId: String, sessionName: String) {
         viewModelScope.launch {
             try {
                 val openF1CircuitName = mapErgastToOpenF1(circuitId)
-                val sessions = apiService.getOpenF1Sessions(
-                    year = year.toInt(),
-                    circuitName = openF1CircuitName,
-                    sessionName = sessionName
-                )
+
+                // 🏎️ Create alias list so it can try both "Practice 2" and "FP2" automatically!
+                val sessionAliases = when (sessionName.lowercase()) {
+                    "practice 1" -> listOf("Practice 1", "FP1")
+                    "practice 2" -> listOf("Practice 2", "FP2")
+                    "practice 3" -> listOf("Practice 3", "FP3")
+                    else -> listOf(sessionName)
+                }
+
+                var sessions = emptyList<OpenF1Session>()
+
+                // 1. Try fetching with exact circuit + session aliases
+                for (alias in sessionAliases) {
+                    sessions = try {
+                        apiService.getOpenF1Sessions(
+                            year = year.toInt(),
+                            circuitName = openF1CircuitName,
+                            sessionName = alias
+                        )
+                    } catch (e: Exception) { emptyList() }
+
+                    if (sessions.isNotEmpty()) break
+                }
+
+                // 2. Fallback: If still empty, search across the whole year with aliases (in case circuit name differs)
+                if (sessions.isEmpty()) {
+                    for (alias in sessionAliases) {
+                        sessions = try {
+                            apiService.getOpenF1Sessions(
+                                year = year.toInt(),
+                                circuitName = null,
+                                sessionName = alias
+                            )
+                        } catch (e: Exception) { emptyList() }
+
+                        if (sessions.isNotEmpty()) break
+                    }
+                }
 
                 val sessionKey = sessions.lastOrNull()?.sessionKey ?: run {
                     selectedSessionResults.value = emptyList()
@@ -396,7 +430,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             driverNumber = lap.driverNumber.toString(),
                             driverName = driverInfo?.familyName ?: "Driver ${lap.driverNumber}",
                             bestLapTime = formatLapTime(lap.lapDuration!!),
-                            gap = if (index == 0) "INTERVAL" else "+${String.format("%.3f", lap.lapDuration!! - (allLaps.filter { it.lapDuration != null }.minOfOrNull { it.lapDuration!! } ?: 0.0))}"
+                            gap = if (index == 0) "INTERVAL" else "+${String.format(java.util.Locale.ENGLISH, "%.3f", lap.lapDuration!! - (allLaps.filter { it.lapDuration != null }.minOfOrNull { it.lapDuration!! } ?: 0.0))}"
                         )
                     }
 
@@ -404,7 +438,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 selectedSessionType.value = sessionName.uppercase()
                 isShowingResults.value = true
             } catch (e: Exception) {
-                isShowingResults.value = false
+                e.printStackTrace()
+                isShowingResults.value = true
             }
         }
     }
@@ -432,7 +467,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun fetchF1News() {
-        // If we are already loading news, do not spin up another duplicate network request thread!
         if (isNewsLoading.value) return
 
         viewModelScope.launch {
@@ -441,12 +475,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val response = withContext(Dispatchers.IO) {
                     espnApiService.getLatestF1News()
                 }
-                // Safely map the incoming data array
                 f1News.value = response.articles ?: emptyList()
             } catch (e: Exception) {
                 android.util.Log.e("F1_HUB_NEWS_ERR", "ESPN request interrupted safely", e)
             } finally {
-                // This is guaranteed to run, preventing the app from getting stuck in a loading lock state
                 isNewsLoading.value = false
             }
         }
@@ -517,7 +549,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         "vegas" -> "Las Vegas"
         "losail" -> "Lusail"
         "yas_marina" -> "Abu Dhabi"
-        else -> ergastId.replace("_", " ").replaceFirstChar { it.uppercase() }
+        else -> ergastId.replace("_", " ")
     }
 
     override fun onCleared() {

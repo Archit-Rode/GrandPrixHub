@@ -50,7 +50,7 @@ interface F1ApiService {
     suspend fun getOpenF1Sessions(
         @Url url: String = "https://api.openf1.org/v1/sessions",
         @Query("year") year: Int,
-        @Query("circuit_short_name") circuitName: String,
+        @Query("circuit_short_name") circuitName: String?,
         @Query("session_name") sessionName: String // e.g., "Practice 1"
     ): List<OpenF1Session>
 

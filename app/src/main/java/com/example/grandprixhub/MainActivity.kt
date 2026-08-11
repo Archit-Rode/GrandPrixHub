@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -47,12 +48,9 @@ import coil3.compose.AsyncImage
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import androidx.compose.material.icons.filled.Home
 
 enum class TimeMode { MY_TIME, TRACK_TIME }
 enum class SessionStatus { PAST, LIVE, UPCOMING }
-// NOTE: TimeMode, AuthStatus, and SessionStatus are now defined at the top level
-// of MainViewModel.kt to avoid duplicate class errors.
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -121,7 +119,6 @@ class MainActivity : ComponentActivity() {
                                                     .width(240.dp)
                                             ) {
                                                 Column(modifier = Modifier.padding(16.dp)) {
-                                                    // --- User Info Header ---
                                                     Text(
                                                         text = viewModel.userName.value.uppercase(),
                                                         color = Color.White,
@@ -135,7 +132,6 @@ class MainActivity : ComponentActivity() {
 
                                                     Spacer(modifier = Modifier.height(12.dp))
 
-                                                    // --- Favorite Driver Selection Section ---
                                                     Text(
                                                         text = "FAVORITE DRIVER",
                                                         color = Color(0xFFE10600),
@@ -145,7 +141,6 @@ class MainActivity : ComponentActivity() {
 
                                                     Spacer(modifier = Modifier.height(6.dp))
 
-                                                    // 🏎️ Fully Clickable Dropdown Menu Layout Block
                                                     var expanded by remember { mutableStateOf(false) }
                                                     val driverStandingsList by viewModel.drivers
 
@@ -156,7 +151,7 @@ class MainActivity : ComponentActivity() {
                                                         OutlinedTextField(
                                                             value = viewModel.favDriverName.value,
                                                             onValueChange = {},
-                                                            readOnly = true, // Locks user input so hardware keyboards don't push the panel layout
+                                                            readOnly = true,
                                                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                                                             modifier = Modifier
                                                                 .menuAnchor()
@@ -176,7 +171,7 @@ class MainActivity : ComponentActivity() {
                                                         ExposedDropdownMenu(
                                                             expanded = expanded,
                                                             onDismissRequest = { expanded = false },
-                                                            modifier = Modifier.background(Color(0xFF1F1F24)) // Dark theme background matching
+                                                            modifier = Modifier.background(Color(0xFF1F1F24))
                                                         ) {
                                                             driverStandingsList.forEach { standing ->
                                                                 val driverFullName = "${standing.Driver.givenName} ${standing.Driver.familyName}"
@@ -184,20 +179,16 @@ class MainActivity : ComponentActivity() {
                                                                 DropdownMenuItem(
                                                                     text = { Text(driverFullName, color = Color.White) },
                                                                     onClick = {
-                                                                        // 1. Instantly force the state string to update on the layout thread
                                                                         viewModel.favDriverName.value = driverFullName
-                                                                        // 2. Shut the dropdown view block smoothly
                                                                         expanded = false
-                                                                        // 3. Persist the change to Firebase Firestore
                                                                         viewModel.saveUserPrefs(standing.Driver.driverId)
                                                                     },
-                                                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding // Spans the touch surface to full row boundaries
+                                                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                                                                 )
                                                             }
                                                         }
                                                     }
 
-                                                    // --- Action Button Footer ---
                                                     HorizontalDivider(
                                                         modifier = Modifier.padding(vertical = 16.dp),
                                                         color = Color.White.copy(alpha = 0.1f)
@@ -239,7 +230,6 @@ class MainActivity : ComponentActivity() {
                 },
                 bottomBar = {
                     NavigationBar(containerColor = Color(0xFF1F1F27), contentColor = Color.White) {
-                        // 🏎️ Look for NavigationBar inside MainActivity.kt and append this item at the front!
                         NavigationBarItem(
                             selected = currentBottomTab == "Home",
                             onClick = { currentBottomTab = "Home"; selectedTeamId = null; viewModel.clearSelectedRace() },
@@ -297,7 +287,6 @@ class MainActivity : ComponentActivity() {
                             Box(modifier = Modifier
                                 .fillMaxHeight(0.85f)
                                 .clip(RoundedCornerShape(16.dp))) {
-                                // 🏎️ Added the trailing lambda to listen for success!
                                 AuthScreen(viewModel) {
                                     showAuthDialog = false
                                 }
@@ -463,7 +452,7 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
                         val onSessionClick: (String) -> Unit = { sessionType ->
                             val type = when {
                                 sessionType.contains("Practice 1") -> "fp1"; sessionType.contains("Practice 2") -> "fp2"; sessionType.contains("Practice 3") -> "fp3"
-                                sessionType.contains("Sprint Qualifying") -> "sprint_qualifying";sessionType.contains("Qualifying") -> "qualifying"; sessionType.contains("Sprint Race") -> "sprint"; else -> "results"
+                                sessionType.contains("Sprint Qualifying") -> "sprint_qualifying"; sessionType.contains("Qualifying") -> "qualifying"; sessionType.contains("Sprint Race") -> "sprint"; else -> "results"
                             }
                             viewModel.fetchSessionResults(season, race.round, type)
 
@@ -503,10 +492,7 @@ fun RaceDetailScreen(viewModel: MainViewModel) {
         if (viewModel.isShowingResults.value) {
             ModalBottomSheet(
                 onDismissRequest = {
-                    // 1. Dismiss the visibility of the overlay smoothly
                     viewModel.isShowingResults.value = false
-
-                    // 2. 🏎️ STOP THE POLLING THREAD IMMEDIATELY ON SHEET DISMISSAL
                     viewModel.stopLiveTiming()
                 },
                 containerColor = Color(0xFF1C1C1C),
@@ -779,7 +765,11 @@ fun HighlightThumbnailPlayer(videoId: String, thumbnailUrl: String) {
 
 @Composable
 fun SessionResultsList(viewModel: MainViewModel) {
-    var selectedTab by remember { mutableStateOf("RESULTS") }; val race = viewModel.selectedRace.value; val session = viewModel.selectedSessionType.value
+    var selectedTab by remember { mutableStateOf("RESULTS") }
+    val race = viewModel.selectedRace.value
+    val session = viewModel.selectedSessionType.value
+    val currentDrivers = viewModel.drivers.value
+
     LaunchedEffect(selectedTab) { if (selectedTab == "HIGHLIGHTS" && race != null) { viewModel.fetchLiveHighlight(race.raceName, session) } }
     Column(modifier = Modifier
         .fillMaxWidth()
@@ -795,7 +785,7 @@ fun SessionResultsList(viewModel: MainViewModel) {
         if (selectedTab == "RESULTS") {
             val results = viewModel.selectedSessionResults.value; if (results.isEmpty()) { Box(modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp), contentAlignment = Alignment.Center) { Text("No results data available yet.", color = Color.Gray) } } else { LazyColumn(modifier = Modifier.fillMaxHeight(0.8f)) { items(results) { result -> SessionResultRow(result); HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp)) } } }
+                .height(200.dp), contentAlignment = Alignment.Center) { Text("No results data available yet.", color = Color.Gray) } } else { LazyColumn(modifier = Modifier.fillMaxHeight(0.8f)) { items(results) { result -> SessionResultRow(result = result, driversList = currentDrivers); HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp)) } } }
         } else {
             Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { if (viewModel.selectedVideoId.value.isNotEmpty()) { HighlightThumbnailPlayer(videoId = viewModel.selectedVideoId.value, thumbnailUrl = viewModel.selectedThumbnailUrl.value); Spacer(modifier = Modifier.height(16.dp)); Text(text = "OFFICIAL ${session.uppercase()} HIGHLIGHTS", color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) } else { Box(modifier = Modifier
                 .fillMaxWidth()
@@ -805,12 +795,19 @@ fun SessionResultsList(viewModel: MainViewModel) {
 }
 
 @Composable
-fun SessionResultRow(result: Any) {
+fun SessionResultRow(result: Any, driversList: List<DriverStanding>) {
     val name: String; val pos: String; val teamColor: Color; val detail: String; val subDetail: String?
     when (result) {
         is RaceResult -> { name = "${result.Driver.givenName} ${result.Driver.familyName.uppercase()}"; pos = result.position; teamColor = getTeamColor(result.Constructor.constructorId); detail = result.status; subDetail = null }
         is QualifyingResult -> { name = "${result.Driver.givenName} ${result.Driver.familyName.uppercase()}"; pos = result.position; teamColor = getTeamColor(result.Constructor.constructorId); detail = result.Q3 ?: result.Q2 ?: result.Q1 ?: "--"; subDetail = null }
-        is PracticeResultDisplay -> { name = result.driverName.uppercase(); pos = result.position.toString(); val driverStanding = viewModel<MainViewModel>().drivers.value.find { it.Driver.permanentNumber == result.driverNumber }; teamColor = getTeamColor(driverStanding?.Constructors?.lastOrNull()?.constructorId); detail = result.bestLapTime; subDetail = result.gap }
+        is PracticeResultDisplay -> {
+            name = result.driverName.uppercase()
+            pos = result.position.toString()
+            val driverStanding = driversList.find { it.Driver.permanentNumber == result.driverNumber }
+            teamColor = getTeamColor(driverStanding?.Constructors?.lastOrNull()?.constructorId)
+            detail = result.bestLapTime
+            subDetail = result.gap
+        }
         else -> return
     }
     Row(modifier = Modifier
@@ -824,13 +821,13 @@ fun SessionResultRow(result: Any) {
 fun getTeamColor(id: String?): Color = when (id?.lowercase()) {
     "red_bull" -> Color(0xFF3671C6); "mercedes" -> Color(0xFF27F4D2); "ferrari" -> Color(0xFFE80020); "mclaren" -> Color(0xFFFF8000); "aston_martin" -> Color(0xFF229971); "alpine" -> Color(0xFF0093CC); "williams" -> Color(0xFF64C4FF); "rb", "racing_bulls" -> Color(0xFF6692FF); "sauber", "kick_sauber" -> Color(0xFF52E252); "audi" -> Color(0xFFB1B3B3); "haas" -> Color(0xFFFFFFFF); "cadillac" -> Color(0xFFD4AF37); else -> Color(0xFFE10600)
 }
+
 @Composable
 fun HomeScreen(viewModel: MainViewModel) {
     val newsArticles by viewModel.f1News
     val isLoading by viewModel.isNewsLoading
     val context = LocalContext.current
 
-    // Automatically poll the countdown refresh state on page mount
     LaunchedEffect(Unit) {
         viewModel.updateCountdown()
         viewModel.fetchF1News()
@@ -839,7 +836,6 @@ fun HomeScreen(viewModel: MainViewModel) {
     Column(modifier = Modifier
         .fillMaxSize()
         .background(Color(0xFF15151E))) {
-        // 🏁 HERO OVERVIEW TIMER (Always Fixed at Top)
         if (viewModel.countdownText.value.isNotEmpty()) {
             Surface(
                 modifier = Modifier
@@ -871,7 +867,6 @@ fun HomeScreen(viewModel: MainViewModel) {
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
 
-        // 📰 NEWS ARTICLES LAYOUT COLUMN
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Color(0xFFE10600))
