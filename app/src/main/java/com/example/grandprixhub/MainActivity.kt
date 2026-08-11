@@ -48,6 +48,8 @@ import coil3.compose.AsyncImage
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.browser.customtabs.CustomTabColorSchemeParams
+import androidx.browser.customtabs.CustomTabsIntent
 
 enum class TimeMode { MY_TIME, TRACK_TIME }
 enum class SessionStatus { PAST, LIVE, UPCOMING }
@@ -880,12 +882,24 @@ fun HomeScreen(viewModel: MainViewModel) {
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // 📰 In MainActivity.kt inside HomeScreen:
                 items(newsArticles) { article ->
                     NewsCard(article = article) {
                         val webUrl = article.links?.web?.href
                         if (!webUrl.isNullOrEmpty()) {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl))
-                            context.startActivity(intent)
+                            // 🏎️ Build a branded Custom Tab matching your dark red app theme
+                            val customTabIntent = CustomTabsIntent.Builder()
+                                .setShowTitle(true) // Shows ESPN article title in the top app bar
+                                .setDefaultColorSchemeParams(
+                                    CustomTabColorSchemeParams.Builder()
+                                        .setToolbarColor(android.graphics.Color.parseColor("#15151E")) // Matches app header
+                                        .setNavigationBarColor(android.graphics.Color.parseColor("#1F1F27")) // Matches app bottom nav bar
+                                        .build()
+                                )
+                                .build()
+
+                            // 🚀 Slide the article window right up inside the app!
+                            customTabIntent.launchUrl(context, Uri.parse(webUrl))
                         }
                     }
                 }
