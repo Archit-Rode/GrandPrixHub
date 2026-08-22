@@ -372,7 +372,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val openF1CircuitName = mapErgastToOpenF1(circuitId)
 
-                // 🏎️ Create alias list so it can try both "Practice 2" and "FP2" automatically!
                 val sessionAliases = when (sessionName.lowercase()) {
                     "practice 1" -> listOf("Practice 1", "FP1")
                     "practice 2" -> listOf("Practice 2", "FP2")
@@ -382,7 +381,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 var sessions = emptyList<OpenF1Session>()
 
-                // 1. Try fetching with exact circuit + session aliases
                 for (alias in sessionAliases) {
                     sessions = try {
                         apiService.getOpenF1Sessions(
@@ -395,7 +393,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (sessions.isNotEmpty()) break
                 }
 
-                // 2. Fallback: If still empty, search across the whole year with aliases (in case circuit name differs)
                 if (sessions.isEmpty()) {
                     for (alias in sessionAliases) {
                         sessions = try {
@@ -439,6 +436,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isShowingResults.value = true
             } catch (e: Exception) {
                 e.printStackTrace()
+                selectedSessionResults.value = emptyList()
+                selectedSessionType.value = sessionName.uppercase()
                 isShowingResults.value = true
             }
         }

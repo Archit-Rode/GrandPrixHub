@@ -7,7 +7,7 @@ import retrofit2.http.Query
 import com.google.gson.annotations.SerializedName
 
 interface F1ApiService {
-    // --- ERGAST / JOLPICA ENDPOINTS (Existing) ---
+// --- ERGAST / JOLPICA ENDPOINTS (Existing) ---
     @GET("{year}/driverStandings.json")
     suspend fun getDriverStandings(@Path("year") year: String): StandingsResponse
 
@@ -44,7 +44,7 @@ interface F1ApiService {
         @Path("round") round: String
     ): SprintResponse
 
-    // --- OPEN F1 ENDPOINTS (New for Practice Results) ---
+// --- OPEN F1 ENDPOINTS (New for Practice Results) ---
 
     @GET
     suspend fun getOpenF1Sessions(
