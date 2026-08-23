@@ -89,10 +89,9 @@ class MainActivity : ComponentActivity() {
                                 navigationIcon = {
                                     IconButton(onClick = { showAiChat = true }) {
                                         Icon(
-                                            painter = painterResource(id = android.R.drawable.ic_menu_help), // Or custom sparks/robot icon
-                                            contentDescription = "F1 AI Assistant",
-                                            tint = Color(0xFF00E676), // Green telemetry accent or Red
-                                            modifier = Modifier.size(24.dp)
+                                            painter = painterResource(android.R.drawable.ic_menu_help),
+                                            contentDescription = "AI Race Engineer",
+                                            tint = Color(0xFF00E676)
                                         )
                                     }
                                 },
@@ -327,6 +326,15 @@ class MainActivity : ComponentActivity() {
                     if (authStatus == AuthStatus.Onboarding) {
                         Dialog(onDismissRequest = { }) {
                             OnboardingScreen(viewModel) { viewModel.authStatus.value = AuthStatus.LoggedIn }
+                        }
+                    }
+                    if (showAiChat) {
+                        ModalBottomSheet(
+                            onDismissRequest = { showAiChat = false },
+                            containerColor = Color(0xFF15151E),
+                            dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }
+                        ) {
+                            AiChatSheet(viewModel = viewModel)
                         }
                     }
                 }

@@ -35,6 +35,9 @@ android {
         // 2. Inject the YouTube API Key into the BuildConfig class
         val apiKey = secretProperties.getProperty("YOUTUBE_API_KEY") ?: ""
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$apiKey\"")
+
+        val geminiKey = secretProperties.getProperty("GEMINI_API_KEY") ?: ""
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
     }
 
     buildTypes {

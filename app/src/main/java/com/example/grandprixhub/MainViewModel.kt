@@ -550,6 +550,104 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         "yas_marina" -> "Abu Dhabi"
         else -> ergastId.replace("_", " ")
     }
+    // --- AI Chat State & Retrofit Client ---
+    private val geminiApi = Retrofit.Builder()
+        .baseUrl("https://generativelanguage.googleapis.com/")
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(GeminiApiService::class.java)
+
+    val chatMessages = mutableStateOf<List<ChatMessage>>(
+        listOf(
+            ChatMessage(
+                text = "Radio check. This is your Pit Wall AI Strategist. Ask me anything about race strategy, tire telemetry, track history, or technical regulations.",
+                isUser = false
+            )
+        )
+    )
+    val isGeneratingAi = mutableStateOf(false)
+
+    fun sendAiMessage(userPrompt: String) {
+        if (userPrompt.isBlank() || isGeneratingAi.value) return
+
+        val currentList = chatMessages.value.toMutableList()
+        currentList.add(ChatMessage(text = userPrompt, isUser = true))
+        chatMessages.value = currentList
+        isGeneratingAi.value = true
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Gather live season state from the ViewModel
+                val currentDate = LocalDate.now().toString()
+                val year = selectedYear.value
+                val topDrivers = drivers.value.take(5).joinToString(", ") { "${it.Driver.familyName} (${it.points} pts)" }
+                val topConstructors = constructors.value.take(3).joinToString(", ") { "${it.Constructor.name} (${it.points} pts)" }
+                val nextRace = schedule.value.firstOrNull { race ->
+                    try {
+                        val rDate = LocalDate.parse(race.date)
+                        rDate.isEqual(LocalDate.now()) || rDate.isAfter(LocalDate.now())
+                    } catch (e: Exception) { false }
+                }?.raceName ?: "Italian Grand Prix"
+
+                // 2. Build temporal & championship context
+                val systemPrompt = """
+                You are the 'Pit Wall AI Strategist & Race Engineer' for the F1 Grand Prix Hub app.
+                
+                REAL-TIME CONTEXT:
+                - Current Date: $currentDate
+                - Active F1 Season: $year (The season is actively underway, not in the future).
+                - Next Scheduled Grand Prix: $nextRace
+                - Current Drivers' Championship Standings: ${if (topDrivers.isNotEmpty()) topDrivers else "Season underway"}
+                - Current Constructors' Championship Standings: ${if (topConstructors.isNotEmpty()) topConstructors else "Season underway"}
+                
+                DIRECTIVES:
+                - Adopt a sharp, concise race engineer persona ('Copy that', 'Box box', 'Understood').
+                - Treat the $year season as ongoing. Never claim the season has not started.
+                - Base race previews, favorite predictions, and performance insights on current form and track characteristics.
+                - Keep responses mobile-friendly with bullet points and clean formatting.
+            """.trimIndent()
+
+                val request = GeminiRequest(
+                    systemInstruction = GeminiSystemInstruction(
+                        parts = listOf(GeminiPart(text = systemPrompt))
+                    ),
+                    contents = listOf(
+                        GeminiContent(
+                            role = "user",
+                            parts = listOf(GeminiPart(text = userPrompt))
+                        )
+                    ),
+                    tools = listOf(GeminiTool())
+                )
+
+                val cleanKey = BuildConfig.GEMINI_API_KEY.replace("\"", "").trim()
+
+                val response = geminiApi.generateContent(
+                    apiKey = cleanKey,
+                    request = request
+                )
+
+                val reply = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                    ?: "Radio interference, no response received from pit wall."
+
+                withContext(Dispatchers.Main) {
+                    chatMessages.value = chatMessages.value + ChatMessage(text = reply, isUser = false)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("GEMINI_ERROR", "Gemini API call failed", e)
+                withContext(Dispatchers.Main) {
+                    chatMessages.value = chatMessages.value + ChatMessage(
+                        text = "Radio check failed: ${e.localizedMessage ?: "Connection error"}",
+                        isUser = false
+                    )
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    isGeneratingAi.value = false
+                }
+            }
+        }
+    }
 
     override fun onCleared() {
         super.onCleared()
